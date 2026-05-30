@@ -34,8 +34,8 @@ export default function Home() {
 
   // Auth States
   const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'mobile' | 'otp' | 'register'>('mobile');
+  const [passcode, setPasscode] = useState('');
+  const [step, setStep] = useState<'mobile' | 'passcode' | 'register'>('mobile');
   const [loading, setLoading] = useState(false);
   
   // Registration Form States
@@ -44,6 +44,7 @@ export default function Home() {
   const [regAddress, setRegAddress] = useState('');
   const [regGender, setRegGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [regAge, setRegAge] = useState<number>(25);
+  const [regPasscode, setRegPasscode] = useState('');
 
   // Call Store Dialog
   const [callActive, setCallActive] = useState(false);
@@ -71,37 +72,39 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [callActive]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleCheckMobile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{10}$/.test(mobile)) {
       alert('Please enter a valid 10-digit mobile number');
       return;
     }
     setLoading(true);
-    // Simulate sending SMS OTP
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 600));
     setLoading(false);
-    setStep('otp');
-    console.log('Developer Mode: SMS OTP pre-filled code is 123456');
+    
+    // Check if the user already exists in the system
+    const userExists = users.some((u) => u.mobile === mobile);
+    if (userExists) {
+      setStep('passcode');
+    } else {
+      setStep('register');
+    }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyPasscode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp !== '123456') {
-      alert('Invalid OTP. Please enter 123456 for developer testing.');
+    if (!/^\d{4}$/.test(passcode)) {
+      alert('Please enter a valid 4-digit PIN Passcode');
       return;
     }
 
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const success = await login(mobile);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const success = await login(mobile, passcode);
     setLoading(false);
 
     if (success) {
-      // Existing user logged in, useEffect handles redirection
-    } else {
-      // First-time user, collect profile parameters
-      setStep('register');
+      // Redirection handled by useEffect
     }
   };
 
@@ -111,18 +114,23 @@ export default function Home() {
       alert('Name is required');
       return;
     }
+    if (!/^\d{4}$/.test(regPasscode)) {
+      alert('Please create a 4-digit PIN Passcode using numbers only.');
+      return;
+    }
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 800));
     await registerUser({
       name: regName,
       mobile,
+      passcode: regPasscode,
       email: regEmail || undefined,
       address: regAddress,
       gender: regGender,
       age: Number(regAge)
     });
     setLoading(false);
-    // Auto redirect handled by useEffect
+    // Redirection handled by useEffect
   };
 
   const formatCallTime = (secs: number) => {
@@ -202,9 +210,9 @@ export default function Home() {
           <div className="glass-card p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 h-32 w-32 bg-teal-500/10 rounded-full filter blur-2xl glow-bg" />
 
-            {/* Mobile / OTP Form */}
+            {/* Mobile / Check Account Form */}
             {step === 'mobile' && (
-              <form onSubmit={handleSendOtp} className="space-y-5 relative">
+              <form onSubmit={handleCheckMobile} className="space-y-5 relative">
                 <div className="text-center space-y-1.5 mb-6">
                   <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Secure Clinic Gateway</h3>
                   <p className="text-xs text-slate-400">Enter your mobile number to sign in or register instantly.</p>
@@ -233,8 +241,8 @@ export default function Home() {
                   disabled={loading}
                   className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-2xl font-bold text-sm shadow-md shadow-teal-500/10 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
-                  <Phone className="h-4 w-4" />
-                  {loading ? 'Sending Request...' : 'Send SMS OTP'}
+                  <ChevronRight className="h-4 w-4" />
+                  {loading ? 'Checking Account...' : 'Continue'}
                 </button>
 
                 {/* Developer Demo Accounts Quick Links */}
@@ -245,21 +253,21 @@ export default function Home() {
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() => { setMobile('7777777777'); setStep('otp'); }}
+                      onClick={() => { setMobile('7777777777'); setPasscode('1234'); setStep('passcode'); }}
                       className="py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-teal-500/10 border border-slate-200/50 dark:border-slate-800 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 transition-all"
                     >
                       Patient Login
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setMobile('8888888888'); setStep('otp'); }}
+                      onClick={() => { setMobile('8888888888'); setPasscode('1234'); setStep('passcode'); }}
                       className="py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-500/10 border border-slate-200/50 dark:border-slate-800 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 transition-all"
                     >
                       Doctor Login
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setMobile('9999999999'); setStep('otp'); }}
+                      onClick={() => { setMobile('9999999999'); setPasscode('1234'); setStep('passcode'); }}
                       className="py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-purple-500/10 border border-slate-200/50 dark:border-slate-800 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 transition-all"
                     >
                       Admin Login
@@ -269,28 +277,28 @@ export default function Home() {
               </form>
             )}
 
-            {/* OTP Verification Form */}
-            {step === 'otp' && (
-              <form onSubmit={handleVerifyOtp} className="space-y-5">
+            {/* Passcode Verification Form */}
+            {step === 'passcode' && (
+              <form onSubmit={handleVerifyPasscode} className="space-y-5">
                 <div className="text-center space-y-1.5 mb-6">
-                  <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Verification Code</h3>
-                  <p className="text-xs text-slate-400">Simulated 6-digit OTP code sent to +91 {mobile}</p>
-                  <p className="text-[11px] text-teal-600 dark:text-teal-400 font-mono font-bold">Use testing code: 123456</p>
+                  <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Passcode Verification</h3>
+                  <p className="text-xs text-slate-400">Enter your 4-digit PIN Passcode to sign in securely.</p>
+                  <p className="text-[11px] text-teal-600 dark:text-teal-400 font-mono font-bold">Demo passcode: 1234</p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-400">One Time Password (OTP)</label>
+                  <label className="text-xs font-bold text-slate-400">4-Digit PIN Passcode</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
                       <Lock className="h-4 w-4" />
                     </span>
                     <input
-                      type="text"
-                      placeholder="Enter 123456"
-                      maxLength={6}
+                      type="password"
+                      placeholder="••••"
+                      maxLength={4}
                       required
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value.replace(/\D/g, ''))}
                       className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-teal-500 focus:outline-none text-sm font-semibold text-center tracking-widest font-mono"
                     />
                   </div>
@@ -299,7 +307,7 @@ export default function Home() {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => { setStep('mobile'); setOtp(''); }}
+                    onClick={() => { setStep('mobile'); setPasscode(''); }}
                     className="py-3 px-2 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 rounded-2xl transition-all"
                   >
                     Go Back
@@ -338,6 +346,24 @@ export default function Home() {
                       required
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-teal-500 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-400">Create 4-Digit PIN Passcode *</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                      <Lock className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="Choose 4-digit PIN (e.g. 5678)"
+                      maxLength={4}
+                      required
+                      value={regPasscode}
+                      onChange={(e) => setRegPasscode(e.target.value.replace(/\D/g, ''))}
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-teal-500 focus:outline-none text-xs font-semibold"
                     />
                   </div>

@@ -10,6 +10,7 @@ export interface UserProfile {
   uid: string;
   name: string;
   mobile: string;
+  passcode: string; // 4-digit passcode PIN
   email?: string;
   address: string;
   gender: 'Male' | 'Female' | 'Other';
@@ -127,7 +128,7 @@ interface AppContextType {
   user: UserProfile | null;
   users: UserProfile[];
   doctors: DoctorProfile[];
-  login: (mobile: string) => Promise<boolean>;
+  login: (mobile: string, passcode: string) => Promise<boolean>;
   logout: () => void;
   updateProfile: (profile: Partial<UserProfile>) => void;
   registerUser: (profile: Omit<UserProfile, 'uid' | 'role' | 'status' | 'createdAt'>) => Promise<void>;
@@ -278,6 +279,7 @@ const DEFAULT_USERS: UserProfile[] = [
     uid: 'admin_1',
     name: 'Animesh Gupta (Admin)',
     mobile: '9999999999',
+    passcode: '1234',
     email: 'admin@ananya.com',
     address: 'Ananya Enterprises, Main Market Road, New Delhi',
     gender: 'Male',
@@ -290,6 +292,7 @@ const DEFAULT_USERS: UserProfile[] = [
     uid: 'doc_ananya',
     name: 'Dr. Ananya Sharma',
     mobile: '8888888888',
+    passcode: '1234',
     email: 'ananya.sharma@ananya.com',
     address: 'Max Super Speciality Clinic, Saket, Delhi',
     gender: 'Female',
@@ -302,6 +305,7 @@ const DEFAULT_USERS: UserProfile[] = [
     uid: 'consumer_demo',
     name: 'Rahul Sharma (Patient)',
     mobile: '7777777777',
+    passcode: '1234',
     email: 'rahul@gmail.com',
     address: 'Flat 402, Block C, Green Park, New Delhi',
     gender: 'Male',
@@ -515,12 +519,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ==========================================
 
   // Authentication
-  const login = async (mobile: string): Promise<boolean> => {
+  const login = async (mobile: string, passcode: string): Promise<boolean> => {
     // Search for existing user
     const existing = users.find((u) => u.mobile === mobile);
     if (existing) {
       if (existing.status === 'suspended') {
         alert('Your account is currently suspended. Please contact Ananya Admin.');
+        return false;
+      }
+      if (existing.passcode !== passcode) {
+        alert('Incorrect 4-digit Passcode (PIN). Please try again.');
         return false;
       }
       setUser(existing);
@@ -628,6 +636,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       uid: newUid,
       name: doc.name,
       mobile: `888888${Math.floor(1000 + Math.random() * 9000)}`, // Generate demo mobile or assign dummy
+      passcode: '1234',
       address: 'Ananya Healthcare Complex, Clinic Wing',
       gender: 'Other',
       age: 35,
@@ -918,6 +927,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         uid: 'doc_ananya',
         name: 'Dr. Ananya Sharma',
         mobile: '8888888888',
+        passcode: '1234',
         email: 'ananya.sharma@ananya.com',
         address: 'Max Super Speciality Clinic, Saket, Delhi',
         gender: 'Female',
@@ -931,6 +941,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         uid: 'consumer_demo',
         name: 'Rahul Sharma (Patient)',
         mobile: '7777777777',
+        passcode: '1234',
         email: 'rahul@gmail.com',
         address: 'Flat 402, Block C, Green Park, New Delhi',
         gender: 'Male',
