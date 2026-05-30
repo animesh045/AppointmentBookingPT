@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --background: 210 40% 98%; /* Slate-50 */
+  --foreground: 222.2 84% 4.9%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  
+  --primary: 173 80% 40%; /* Modern Teal-600 */
+  --primary-foreground: 210 40% 98%;
+  
+  --secondary: 200 95% 39%; /* Premium Sky-700 */
+  --secondary-foreground: 210 40% 98%;
+  
+  --accent: 152 76% 40%; /* Emerald-600 */
+  --accent-foreground: 210 40% 98%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  
+  --border: 214.3 31.8% 91.4%;
+  --radius: 1rem;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%; /* Deep Slate Black */
+  --foreground: 210 40% 98%;
+  
+  --card: 222.2 84% 7%;
+  --card-foreground: 210 40% 98%;
+  
+  --primary: 173 80% 45%; /* Glowing Teal */
+  --primary-foreground: 222.2 84% 4.9%;
+  
+  --secondary: 200 95% 45%; /* Ocean Sky */
+  --secondary-foreground: 210 40% 98%;
+  
+  --accent: 152 76% 45%; /* Neon Mint */
+  --accent-foreground: 222.2 84% 4.9%;
+
+  --muted: 217.2 32.6% 12%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --border: 217.2 32.6% 17.5%;
+}
+
+* {
+  border-color: hsl(var(--border));
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  overflow-x: hidden;
+}
+
+/* Custom Premium Utilities */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.dark .glass {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
+}
+
+.dark .glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(51, 65, 85, 0.4);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+}
+
+/* Soft Animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.05);
+  }
+}
+
+.glow-bg {
+  animation: pulseGlow 10s ease-in-out infinite;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+/* Shimmer Effect */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.6) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

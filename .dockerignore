@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+temp-app
+Dockerfile
+.dockerignore
+.env.local
+npm-debug.log
+README.md
+task.md
+walkthrough.md
+implementation_plan.md

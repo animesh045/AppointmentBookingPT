@@ -1,0 +1,733 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useApp, Appointment, Order } from '@/context/AppContext';
+import { Navbar } from '@/components/Navbar';
+import { CartDrawer } from '@/components/CartDrawer';
+import { jsPDF } from 'jspdf';
+import { 
+  Calendar, 
+  ShoppingBag, 
+  MessageSquare, 
+  PhoneCall, 
+  CreditCard, 
+  Download, 
+  Video, 
+  CheckCircle, 
+  Clock, 
+  XCircle,
+  FileText,
+  Truck,
+  Package,
+  Activity,
+  AlertCircle,
+  Phone
+} from 'lucide-react';
+
+export default function ConsumerDashboard() {
+  const { user, appointments, payConsultationFee, orders, medicines, updateAppointmentStatus } = useApp();
+  const router = useRouter();
+  const [cartOpen, setCartOpen] = useState(false);
+
+  // Razorpay Simulation States
+  const [activePaymentApt, setActivePaymentApt] = useState<Appointment | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'upi' | 'netbanking'>('card');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+
+  // Call Store Dialog
+  const [callActive, setCallActive] = useState(false);
+  const [callTimer, setCallTimer] = useState(0);
+
+  // Redirect to landing page if not logged in or role is different
+  useEffect(() => {
+    if (!user) {
+      router.push('/');
+    } else if (user.role === 'admin') {
+      router.push('/admin');
+    } else if (user.role === 'doctor') {
+      router.push('/doctor');
+    }
+  }, [user, router]);
+
+  // Call duration counter simulator
+  useEffect(() => {
+    let interval: any;
+    if (callActive) {
+      interval = setInterval(() => {
+        setCallTimer((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setCallTimer(0);
+    }
+    return () => clearInterval(interval);
+  }, [callActive]);
+
+  if (!user || user.role !== 'consumer') return null;
+
+  // Filter lists for current patient
+  const patientApts = appointments.filter((a) => a.patientId === user.uid);
+  const patientOrders = orders.filter((o) => o.patientId === user.uid);
+
+  // Trigger simulated payment
+  const handleOpenPayment = (apt: Appointment) => {
+    setActivePaymentApt(apt);
+  };
+
+  const handleProcessPayment = async () => {
+    if (!activePaymentApt) return;
+    setPaymentProcessing(true);
+    // Simulate Razorpay secure token processing
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await payConsultationFee(activePaymentApt.id, paymentMethod);
+    setPaymentProcessing(false);
+    setActivePaymentApt(null);
+  };
+
+  // ==========================================
+  // PDF GENERATION (RECEIPTS & PRESCRIPTIONS)
+  // ==========================================
+
+  // 1. Payment Receipt PDF
+  const downloadReceiptPdf = (apt: Appointment) => {
+    const doc = new jsPDF();
+    
+    // Header Branding
+    doc.setFillColor(13, 148, 136); // Teal-600
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.text('ANANYA ENTERPRISES', 15, 20);
+    doc.setFontSize(10);
+    doc.text('HEALTHCARE CONSULTATION INVOICE RECEIPT', 15, 30);
+
+    // Invoice Metadata
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('INVOICE TO:', 15, 55);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${apt.patientName}`, 15, 62);
+    doc.text(`Mobile: +91 ${apt.patientMobile}`, 15, 68);
+    doc.text(`Age/Gender: ${user.age} yrs / ${user.gender}`, 15, 74);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('RECEIPT DETAILS:', 120, 55);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Receipt ID: ${apt.paymentId || 'MOCK_ID'}`, 120, 62);
+    doc.text(`Date Issued: ${new Date(apt.createdAt).toLocaleDateString()}`, 120, 68);
+    doc.text(`Status: PAID (Razorpay)`, 120, 74);
+
+    // Table divider line
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, 85, 195, 85);
+
+    // Items Header
+    doc.setFont('helvetica', 'bold');
+    doc.text('Consultation Services Description', 15, 95);
+    doc.text('Professional Fee (INR)', 160, 95);
+    doc.line(15, 100, 195, 100);
+
+    // Table Content
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Video Consultation with ${apt.doctorName}`, 15, 110);
+    doc.text(`Specialty: ${apt.specialty}`, 15, 116);
+    doc.text(`Appt Date: ${apt.date} @ ${apt.timeSlot}`, 15, 122);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Rs. ${apt.fees}.00`, 160, 110);
+
+    doc.line(15, 130, 195, 130);
+
+    // Total Settle box
+    doc.setFillColor(240, 240, 240);
+    doc.rect(130, 140, 65, 30, 'F');
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(10);
+    doc.text('Subtotal:', 135, 148);
+    doc.text('GST (18%):', 135, 154);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Grand Total:', 135, 162);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Rs. ${apt.fees}.00`, 170, 148);
+    doc.text(`Included`, 170, 154);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(13, 148, 136); // Teal
+    doc.text(`Rs. ${apt.fees}.00`, 170, 162);
+
+    // Footer
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Thank you for choosing Ananya Enterprises. This is a computer generated bill requiring no signature.', 15, 270);
+
+    doc.save(`Invoice_${apt.id}.pdf`);
+  };
+
+  // 2. Prescription PDF
+  const downloadPrescriptionPdf = (apt: Appointment) => {
+    const doc = new jsPDF();
+    
+    // Header Banner
+    doc.setFillColor(13, 148, 136); // Teal-600
+    doc.rect(0, 0, 210, 45, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.text('ANANYA HEALTHCARE SERVICES', 15, 22);
+    doc.setFontSize(10);
+    doc.text('ANANYA ENTERPRISES • PHARMACY & CLINIC HUB', 15, 32);
+
+    // Doctor & Patient Grid
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PRACTITIONER DETAILS:', 15, 60);
+    doc.setFont('helvetica', 'normal');
+    doc.text(apt.doctorName, 15, 67);
+    doc.text(apt.specialty, 15, 73);
+    doc.text('Ananya Medical Center Complex', 15, 79);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('PATIENT DOSSIER:', 120, 60);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Patient Name: ${apt.patientName}`, 120, 67);
+    doc.text(`Age/Sex: ${user.age} yrs / ${user.gender}`, 120, 73);
+    doc.text(`Mobile: +91 ${apt.patientMobile}`, 120, 79);
+
+    // Divider Line
+    doc.setDrawColor(13, 148, 136);
+    doc.setLineWidth(1);
+    doc.line(15, 88, 195, 88);
+
+    // Medical Symbol Rx
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(13, 148, 136);
+    doc.text('Rx', 15, 105);
+
+    // Consultation Notes / Recommendations
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Diagnoses & Clinical Notes:', 15, 118);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    
+    // Notes content
+    const notesText = apt.notes || 'Patient complained of mild cardiovascular fatigue. Advised resting, routine active exercises, and hydration. Re-check scheduled for next month. Adjust dosages as required.';
+    const splitNotes = doc.splitTextToSize(notesText, 180);
+    doc.text(splitNotes, 15, 126);
+
+    // Medication table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Prescribed Medicines & Schedule:', 15, 160);
+    doc.line(15, 165, 195, 165);
+    
+    doc.setFontSize(10);
+    doc.text('Medicine Name', 15, 172);
+    doc.text('Dosage Schedule', 90, 172);
+    doc.text('Duration', 160, 172);
+    doc.line(15, 176, 195, 176);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text('1. Atorvastatin 10mg (Lipitor)', 15, 184);
+    doc.text('Once daily (Before bedtime)', 90, 184);
+    doc.text('30 Days', 160, 184);
+
+    doc.text('2. Revital H Multivitamin Capsule', 15, 194);
+    doc.text('Once daily (After breakfast)', 90, 194);
+    doc.text('15 Days', 160, 194);
+
+    doc.text('3. Paracetamol 650mg (Dolo)', 15, 204);
+    doc.text('As needed (SOS for fever/body pain)', 90, 204);
+    doc.text('5 Days', 160, 204);
+
+    doc.line(15, 214, 195, 214);
+
+    // Signature Block
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(11);
+    doc.text('Digitally Authorized by:', 130, 240);
+    doc.setFont('helvetica', 'bold');
+    doc.text(apt.doctorName, 130, 248);
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Ananya Medical Registry Signature Verified', 130, 253);
+
+    // Footer
+    doc.setFont('helvetica', 'normal');
+    doc.text('Please present this prescription at the Ananya Enterprises Pharmacy desk for a 10% discount on stocks.', 15, 280);
+
+    doc.save(`Prescription_${apt.id}.pdf`);
+  };
+
+  const getStatusBadge = (status: Appointment['status']) => {
+    switch (status) {
+      case 'approved':
+        return <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><CheckCircle className="h-3 w-3" /> Approved</span>;
+      case 'rejected':
+        return <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><XCircle className="h-3 w-3" /> Rejected</span>;
+      case 'completed':
+        return <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><CheckCircle className="h-3 w-3" /> Completed</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2.5 py-1 rounded-full"><Clock className="h-3 w-3" /> Pending</span>;
+    }
+  };
+
+  const getOrderStatusBadge = (status: Order['status']) => {
+    switch (status) {
+      case 'processing':
+        return <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase">Processing</span>;
+      case 'dispatched':
+        return <span className="bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase">Dispatched</span>;
+      case 'delivered':
+        return <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase">Delivered</span>;
+      default:
+        return <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-extrabold px-2.5 py-1 rounded-full uppercase">Pending</span>;
+    }
+  };
+
+  const formatCallTime = (secs: number) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors">
+      <Navbar onOpenCart={() => setCartOpen(true)} />
+      <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} />
+
+      {/* Main Grid */}
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8 animate-in fade-in duration-300">
+        
+        {/* Welcome Banner */}
+        <div className="glass-card p-6 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 h-40 w-40 bg-teal-500/10 rounded-full filter blur-3xl" />
+          <div className="space-y-1 text-left relative">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-slate-100">
+              Welcome back, {user.name.split(' ')[0]}! 👋
+            </h1>
+            <p className="text-xs text-slate-400">
+              Manage your consult bookings, download medical records, and track reservations.
+            </p>
+          </div>
+          <div className="flex gap-3 relative">
+            <button
+              onClick={() => setCallActive(true)}
+              className="py-2.5 px-4 bg-slate-950 dark:bg-white text-slate-100 dark:text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow"
+            >
+              <PhoneCall className="h-3.5 w-3.5 text-teal-500 dark:text-teal-600" />
+              Call Pharmacy Desk
+            </button>
+            <button
+              onClick={() => router.push('/dashboard/appointments')}
+              className="py-2.5 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md shadow-teal-500/15"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Book New Consult
+            </button>
+          </div>
+        </div>
+
+        {/* Dashboard Grid split: Appointments on Left, Pharmacy Orders on Right */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* APPOINTMENTS PANEL (Left - Col Span 7) */}
+          <section className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-teal-600 dark:text-teal-400" /> 
+                Clinical Consultation Roster ({patientApts.length})
+              </h2>
+            </div>
+
+            {patientApts.length === 0 ? (
+              <div className="glass-card p-12 text-center rounded-3xl space-y-3">
+                <div className="h-12 w-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 mx-auto">
+                  <Calendar className="h-6 w-6" />
+                </div>
+                <h3 className="font-bold text-slate-700 dark:text-slate-300">No appointments scheduled</h3>
+                <p className="text-xs text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+                  Book a specialized consultant for custom advice.
+                </p>
+                <button
+                  onClick={() => router.push('/dashboard/appointments')}
+                  className="py-2 px-4 bg-teal-500 hover:bg-teal-600 text-slate-950 font-bold text-xs rounded-xl shadow transition-all"
+                >
+                  Schedule Appointment
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {patientApts.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="glass-card p-5 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4 hover:shadow-md transition-all relative overflow-hidden text-left"
+                  >
+                    {/* Status Badge */}
+                    <div className="flex justify-between items-center pb-3.5 border-b border-slate-100 dark:border-slate-800/60">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold font-mono uppercase">{apt.id}</span>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{apt.doctorName}</h3>
+                      </div>
+                      {getStatusBadge(apt.status)}
+                    </div>
+
+                    {/* Metadata details */}
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-slate-400">Specialty</span>
+                        <p className="font-bold mt-0.5">{apt.specialty}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Date & Slot</span>
+                        <p className="font-bold mt-0.5">{apt.date} • {apt.timeSlot}</p>
+                      </div>
+                      <div className="col-span-2 border-t border-dashed border-slate-100 dark:border-slate-800/60 pt-2 mt-1">
+                        <span className="text-slate-400">Reason for Visit</span>
+                        <p className="font-semibold text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">{apt.reason}</p>
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Section depending on status */}
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60 flex flex-wrap gap-2 justify-between items-center">
+                      
+                      {/* Pricing badge */}
+                      <span className="text-xs font-bold text-slate-500">
+                        Consult Fee: <span className="text-teal-600 dark:text-teal-400 text-sm font-extrabold">₹{apt.fees}</span>
+                      </span>
+
+                      <div className="flex flex-wrap gap-2">
+                        {/* 1. Payment Needed */}
+                        {apt.status === 'approved' && apt.paymentStatus === 'pending' && (
+                          <button
+                            onClick={() => handleOpenPayment(apt)}
+                            className="py-2 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-500/10 flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Pay consultation Fee (₹{apt.fees})
+                          </button>
+                        )}
+
+                        {/* 2. Paid & Approved: Ready to Join Room */}
+                        {apt.status === 'approved' && apt.paymentStatus === 'paid' && (
+                          <>
+                            <button
+                              onClick={() => downloadReceiptPdf(apt)}
+                              className="py-2 px-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                              title="Download Payment receipt PDF"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Receipt
+                            </button>
+                            
+                            {apt.meetingLink ? (
+                              <a
+                                href={apt.meetingLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="py-2 px-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-emerald-500/10 transition-all hover:scale-[1.02]"
+                              >
+                                <Video className="h-3.5 w-3.5 animate-pulse" />
+                                Join Meeting Room
+                              </a>
+                            ) : (
+                              <span className="py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-xl text-[10px] font-bold">
+                                Waiting for link from Admin
+                              </span>
+                            )}
+                          </>
+                        )}
+
+                        {/* 3. Real-Time Patient ↔ Doctor Chat Room */}
+                        {(apt.status === 'approved' || apt.status === 'completed') && (
+                          <button
+                            onClick={() => router.push(`/dashboard/chat/${apt.id}`)}
+                            className="py-2 px-4 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/40 border border-teal-200/20 text-teal-600 dark:text-teal-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Live Chat Room
+                          </button>
+                        )}
+
+                        {/* 4. Consultation Complete: Download Prescription PDF */}
+                        {apt.status === 'completed' && (
+                          <>
+                            <button
+                              onClick={() => downloadReceiptPdf(apt)}
+                              className="py-2 px-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Receipt
+                            </button>
+                            <button
+                              onClick={() => downloadPrescriptionPdf(apt)}
+                              className="py-2 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all hover:scale-[1.02]"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Download Prescription
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* PHARMACY ORDERS TRACKER (Right - Col Span 5) */}
+          <section className="lg:col-span-5 space-y-4 text-left">
+            <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              Pharmacy Orders & Pickups ({patientOrders.length})
+            </h2>
+
+            {patientOrders.length === 0 ? (
+              <div className="glass-card p-12 text-center rounded-3xl space-y-3">
+                <div className="h-12 w-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 mx-auto">
+                  <Package className="h-6 w-6" />
+                </div>
+                <h3 className="font-bold text-slate-700 dark:text-slate-300">No medicine orders placed</h3>
+                <p className="text-xs text-slate-400 max-w-[200px] mx-auto leading-relaxed">
+                  Browse the pharmacy list and reserve stock.
+                </p>
+                <button
+                  onClick={() => router.push('/dashboard/pharmacy')}
+                  className="py-2 px-4 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-xl shadow transition-all"
+                >
+                  Visit Pharmacy
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {patientOrders.map((ord) => (
+                  <div
+                    key={ord.id}
+                    className="glass-card p-4 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-3"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[9px] text-slate-400 font-mono font-bold block">{ord.id}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {new Date(ord.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {getOrderStatusBadge(ord.status)}
+                    </div>
+
+                    <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+                      {ord.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>{item.name} <span className="text-slate-400">x{item.quantity}</span></span>
+                          <span>₹{item.price * item.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-400">Order Method:</span>
+                      <span className="bg-slate-100 dark:bg-slate-800 text-[10px] font-bold py-0.5 px-2 rounded">
+                        {ord.fastBooking ? '⚡ Store Pick-up' : '🚚 Home Delivery'}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500">
+                        Paid: <span className="font-bold text-slate-700 dark:text-slate-300">{ord.paymentStatus === 'paid' ? '💳 Yes (Razorpay)' : '💵 COD'}</span>
+                      </span>
+                      <span className="text-xs font-extrabold text-teal-600 dark:text-teal-400">
+                        ₹{ord.totalAmount}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+        </div>
+      </main>
+
+      {/* ==========================================
+          RAZORPAY SECURE PAYMENT DIALOG SIMULATOR
+          ========================================== */}
+      {activePaymentApt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+            
+            {/* Close */}
+            <button
+              onClick={() => setActivePaymentApt(null)}
+              className="absolute top-5 right-5 p-1 rounded-lg text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+
+            {/* Logo header */}
+            <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="h-10 w-10 bg-teal-500 text-white rounded-xl flex items-center justify-center font-bold text-lg">
+                R
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  Razorpay Checkout <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[8px] font-extrabold px-2 py-0.5 rounded uppercase">Sandbox</span>
+                </h4>
+                <p className="text-[10px] text-slate-400">Securing payment to Ananya Enterprises</p>
+              </div>
+            </div>
+
+            {/* Payment Details */}
+            <div className="py-4 space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Reference:</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{activePaymentApt.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Consultant:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">{activePaymentApt.doctorName}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-2 mt-1 font-bold">
+                  <span>Grand Total:</span>
+                  <span className="text-teal-600 dark:text-teal-400">₹{activePaymentApt.fees}.00</span>
+                </div>
+              </div>
+
+              {/* Payment Methods */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Choose Payment Method</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('card')}
+                    className={`p-3 rounded-2xl border text-xs font-bold transition-all text-center ${
+                      paymentMethod === 'card'
+                        ? 'border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400'
+                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    💳 Card
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('upi')}
+                    className={`p-3 rounded-2xl border text-xs font-bold transition-all text-center ${
+                      paymentMethod === 'upi'
+                        ? 'border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400'
+                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    📱 UPI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('netbanking')}
+                    className={`p-3 rounded-2xl border text-xs font-bold transition-all text-center ${
+                      paymentMethod === 'netbanking'
+                        ? 'border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400'
+                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    🏦 NetBanking
+                  </button>
+                </div>
+              </div>
+
+              {paymentMethod === 'upi' && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl space-y-1.5 animate-in slide-in-from-top-2 duration-200 text-xs">
+                  <label className="text-[10px] font-bold text-slate-400">Virtual Payment Address (VPA)</label>
+                  <input
+                    type="text"
+                    placeholder="9999999999@paytm"
+                    defaultValue={`${user.mobile}@upi`}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={handleProcessPayment}
+                disabled={paymentProcessing}
+                className="w-full py-3.5 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-2xl font-bold text-sm shadow-md disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
+              >
+                {paymentProcessing ? (
+                  <>
+                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Connecting Razorpay Network...
+                  </>
+                ) : (
+                  `Secure Pay ₹${activePaymentApt.fees}.00`
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          INTERACTIVE MOCK PHONE CALL OVERLAY
+          ========================================== */}
+      {callActive && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all duration-300 animate-in fade-in">
+          <div className="w-80 bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 shadow-2xl flex flex-col items-center justify-between text-white aspect-[9/16] relative overflow-hidden animate-in slide-in-from-bottom-12 duration-500">
+            
+            {/* Soft decorative light */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-slate-800 rounded-b-3xl flex items-center justify-center">
+              <div className="h-1.5 w-16 bg-slate-700 rounded-full" />
+            </div>
+
+            <div className="pt-16 flex flex-col items-center space-y-2">
+              <div className="h-20 w-20 rounded-full bg-gradient-to-tr from-teal-500 to-sky-600 flex items-center justify-center text-white text-3xl shadow-xl shadow-teal-500/20 font-bold border-2 border-slate-800 uppercase">
+                A
+              </div>
+              <h4 className="text-base font-extrabold tracking-wide mt-2">Ananya Enterprises</h4>
+              <p className="text-[10px] text-teal-400 font-semibold tracking-widest uppercase">Pharmacy Desk</p>
+              <p className="text-xs text-slate-500 font-mono mt-1">+91 99999-55663</p>
+            </div>
+
+            <div className="flex flex-col items-center space-y-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping mb-1" />
+              <p className="text-xs text-slate-300 font-semibold">Active Conversation</p>
+              <p className="text-2xl font-bold font-mono text-emerald-400 tracking-wider">
+                {formatCallTime(callTimer)}
+              </p>
+            </div>
+
+            <div className="pb-8 w-full flex flex-col items-center space-y-4">
+              <p className="text-[10px] text-slate-400 text-center max-w-[200px] leading-relaxed">
+                Consult with our senior pharmacist regarding medicines or order reservations.
+              </p>
+              
+              <button
+                onClick={() => setCallActive(false)}
+                className="h-14 w-14 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
+                title="End simulated call"
+              >
+                <Phone className="h-6 w-6 rotate-[135deg]" />
+              </button>
+            </div>
+            
+          </div>
+        </div>
+      )}
+
+      {/* Footer Branding */}
+      <footer className="py-6 border-t border-slate-200/50 dark:border-slate-900/50 text-center text-xs text-slate-400 bg-white/60 dark:bg-slate-950 mt-auto">
+        <p className="font-bold text-slate-500 dark:text-slate-400">ANANYA ENTERPRISES SYSTEM</p>
+        <p className="mt-1 text-[10px]">Created by Animesh • Secure Clinic and Stock Platform</p>
+      </footer>
+    </div>
+  );
+}
