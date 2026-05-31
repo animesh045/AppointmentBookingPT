@@ -62,25 +62,12 @@ body {
 
 /* Custom Premium Utilities */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-}
-
-.dark .glass {
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
-}
-
-.dark .glass-card {
   background: rgba(30, 41, 59, 0.7);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(51, 65, 85, 0.4);

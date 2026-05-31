@@ -533,13 +533,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Authentication
   const login = async (mobile: string, passcode: string): Promise<boolean> => {
+    // Load fresh copy of users from localStorage if available to avoid race conditions with React state
+    let activeUsers = users;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ananya_users');
+      if (stored) {
+        activeUsers = JSON.parse(stored);
+      }
+    }
+
     // Intercept/force admin credentials and role to ensure stale local storage behaves correctly
     if (mobile === '8368825928') {
       if (passcode !== '1234') {
         alert('Incorrect 4-digit Passcode (PIN). Please try again.');
         return false;
       }
-      let adminUser = users.find((u) => u.mobile === '8368825928');
+      let adminUser = activeUsers.find((u) => u.mobile === '8368825928');
       if (!adminUser || adminUser.role !== 'admin' || adminUser.passcode !== '1234') {
         const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928') || {
           uid: 'admin_1',
@@ -560,10 +569,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           passcode: '1234',
           status: 'active'
         };
-        const otherUsers = users.filter(u => u.mobile !== '8368825928');
+        const otherUsers = activeUsers.filter(u => u.mobile !== '8368825928');
         const updatedUsers = [...otherUsers, adminUser];
         setUsers(updatedUsers);
         syncStorage('ananya_users', updatedUsers);
+        activeUsers = updatedUsers;
       }
       setUser(adminUser);
       syncStorage('ananya_session', adminUser);
@@ -572,7 +582,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Search for existing user
-    const existing = users.find((u) => u.mobile === mobile);
+    const existing = activeUsers.find((u) => u.mobile === mobile);
     if (existing) {
       if (existing.status === 'suspended') {
         alert('Your account is currently suspended. Please contact Ananya Admin.');
@@ -593,6 +603,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const registerUser = async (profile: Omit<UserProfile, 'uid' | 'role' | 'status' | 'createdAt'>) => {
+    // Load fresh copy of users from localStorage if available to avoid race conditions with React state
+    let activeUsers = users;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ananya_users');
+      if (stored) {
+        activeUsers = JSON.parse(stored);
+      }
+    }
+
     const newUid = `user_${Date.now()}`;
     const newUser: UserProfile = {
       ...profile,
@@ -602,7 +621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    const updated = [...users, newUser];
+    const updated = [...activeUsers, newUser];
     setUsers(updated);
     syncStorage('ananya_users', updated);
 

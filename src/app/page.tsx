@@ -166,7 +166,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="min-h-screen flex flex-col bg-slate-950 transition-colors">
       <Navbar onOpenCart={() => setCartOpen(true)} />
       <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} />
 
