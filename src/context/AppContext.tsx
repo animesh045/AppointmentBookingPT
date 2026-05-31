@@ -349,7 +349,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Seeding users
     if (localUsers) {
-      setUsers(JSON.parse(localUsers));
+      const parsed = JSON.parse(localUsers);
+      const adminIndex = parsed.findIndex((u: any) => u.mobile === '8368825928');
+      if (adminIndex === -1) {
+        const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
+        if (defaultAdmin) {
+          parsed.push(defaultAdmin);
+          localStorage.setItem('ananya_users', JSON.stringify(parsed));
+        }
+      } else if (parsed[adminIndex].role !== 'admin' || parsed[adminIndex].passcode !== '1234') {
+        parsed[adminIndex].role = 'admin';
+        parsed[adminIndex].passcode = '1234';
+        localStorage.setItem('ananya_users', JSON.stringify(parsed));
+      }
+      setUsers(parsed);
     } else {
       localStorage.setItem('ananya_users', JSON.stringify(DEFAULT_USERS));
       setUsers(DEFAULT_USERS);
@@ -520,6 +533,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Authentication
   const login = async (mobile: string, passcode: string): Promise<boolean> => {
+    // Intercept/force admin credentials and role to ensure stale local storage behaves correctly
+    if (mobile === '8368825928') {
+      if (passcode !== '1234') {
+        alert('Incorrect 4-digit Passcode (PIN). Please try again.');
+        return false;
+      }
+      let adminUser = users.find((u) => u.mobile === '8368825928');
+      if (!adminUser || adminUser.role !== 'admin' || adminUser.passcode !== '1234') {
+        const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928') || {
+          uid: 'admin_1',
+          name: 'Animesh Gupta (Admin)',
+          mobile: '8368825928',
+          passcode: '1234',
+          email: 'admin@ananya.com',
+          address: 'Ananya Enterprises, Main Market Road, New Delhi',
+          gender: 'Male' as const,
+          age: 32,
+          role: 'admin' as const,
+          status: 'active' as const,
+          createdAt: new Date().toISOString()
+        };
+        adminUser = {
+          ...defaultAdmin,
+          role: 'admin',
+          passcode: '1234',
+          status: 'active'
+        };
+        const otherUsers = users.filter(u => u.mobile !== '8368825928');
+        const updatedUsers = [...otherUsers, adminUser];
+        setUsers(updatedUsers);
+        syncStorage('ananya_users', updatedUsers);
+      }
+      setUser(adminUser);
+      syncStorage('ananya_session', adminUser);
+      createLog('User Login', `Logged in via mobile ${mobile}`, adminUser.uid, adminUser.name);
+      return true;
+    }
+
     // Search for existing user
     const existing = users.find((u) => u.mobile === mobile);
     if (existing) {
