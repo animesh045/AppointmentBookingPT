@@ -148,7 +148,7 @@ export default function Home() {
         <div className="lg:col-span-7 space-y-6 text-left animate-in fade-in slide-in-from-left-6 duration-500">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-100/50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-400 border border-teal-200/30">
             <HeartHandshake className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-wide">Integrated Healthcare Portal</span>
+            <span className="text-xs font-bold uppercase tracking-wide">Doctor appointment booking app - Ananya enterprises</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight leading-tight">
@@ -184,18 +184,10 @@ export default function Home() {
           <div className="flex flex-wrap gap-4 pt-2">
             <a
               href="tel:9717098219"
-              className="px-6 py-3.5 bg-slate-900 dark:bg-white text-slate-100 dark:text-slate-950 rounded-2xl font-bold text-sm shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 group"
+              className="px-6 py-3.5 bg-slate-900 dark:bg-white text-slate-100 dark:text-slate-950 rounded-2xl font-bold text-sm shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 group justify-center"
             >
               <PhoneCall className="h-4 w-4 text-teal-500 dark:text-teal-600 group-hover:animate-bounce" />
               Call Pharmacy Desk
-            </a>
-            
-            <a
-              href="#pharmacy-intro"
-              className="px-6 py-3.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-2xl font-bold text-sm text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
-            >
-              Explore Pharmacy
-              <ChevronRight className="h-4 w-4" />
             </a>
           </div>
         </div>

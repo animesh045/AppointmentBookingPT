@@ -3,7 +3,7 @@ import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
 
 export const metadata: Metadata = {
-  title: "Ananya Enterprises – Appointment & Pharmacy Management System",
+  title: "Doctor appointment booking app - Ananya enterprises",
   description: "A premium healthcare appointment booking and pharmacy ordering platform featuring direct doctor consultations, Razorpay billing, and role management.",
   icons: {
     icon: "/favicon.ico",
