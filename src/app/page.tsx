@@ -253,31 +253,11 @@ export default function Home() {
                   {loading ? 'Checking Account...' : 'Continue'}
                 </button>
 
-                {/* Developer Demo Accounts Quick Links */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-center">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block text-center">
-                    📦 Developer Demo Sign-In
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setMobile('7777777777'); setPasscode('1234'); setStep('passcode'); }}
-                      className="py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-teal-500/10 border border-slate-200/50 dark:border-slate-800 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 transition-all"
-                    >
-                      Patient Login
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setMobile('8888888888'); setPasscode('1234'); setStep('passcode'); }}
-                      className="py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-500/10 border border-slate-200/50 dark:border-slate-800 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 transition-all"
-                    >
-                      Doctor Login
-                    </button>
-                  </div>
-                  
+                {/* Admin Portal Gateway Link */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
                   <Link
                     href="/admin/login"
-                    className="mt-3 block py-2 px-3 bg-purple-950/40 border border-purple-500/20 text-purple-400 hover:bg-purple-900/30 rounded-xl text-[10px] font-extrabold transition-all"
+                    className="block py-2 px-3 bg-purple-950/40 border border-purple-500/20 text-purple-400 hover:bg-purple-900/30 rounded-xl text-[10px] font-extrabold transition-all"
                   >
                     🔑 Access Administrative Portal
                   </Link>

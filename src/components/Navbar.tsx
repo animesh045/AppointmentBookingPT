@@ -28,22 +28,15 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenCart }) => {
-  const { user, logout, notifications, markNotificationRead, devLoginAs, cart } = useApp();
+  const { user, logout, notifications, markNotificationRead, cart } = useApp();
   const pathname = usePathname();
   
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [devPanelExpanded, setDevPanelExpanded] = useState(true);
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const unreadNotifs = notifications.filter((n) => !n.read && (user ? n.userId === user.uid : false));
-
-  const handleDevSwitch = (role: 'consumer' | 'doctor' | 'admin') => {
-    devLoginAs(role);
-    setMobileMenuOpen(false);
-    setProfileOpen(false);
-  };
 
   // Dynamic Navigation Links based on role
   const getNavLinks = () => {
@@ -77,72 +70,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCart }) => {
 
   const navLinks = getNavLinks();
 
-  const appRole = process.env.NEXT_PUBLIC_APP_ROLE;
-
   return (
     <header className="sticky top-0 z-50 w-full transition-all duration-300">
-      {/* ==========================================
-          PREMIUM DEV TOOLBAR (ROLE QUICK SWITCHER)
-          ========================================== */}
-      {!appRole && (
-        <div className="bg-slate-900 text-slate-100 text-xs px-4 py-2 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 shadow-inner">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-emerald-400 animate-pulse" />
-            <span className="font-semibold text-slate-300">Ananya Developer Controls:</span>
-            <span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-slate-400 font-mono">Mock OTP & Payments Active</span>
-          </div>
-          
-          {devPanelExpanded ? (
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 hidden sm:inline">Active User Simulator:</span>
-              <button
-                onClick={() => handleDevSwitch('consumer')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                  user?.role === 'consumer'
-                    ? 'bg-teal-500 text-slate-950 font-bold shadow-md'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
-              >
-                👤 Patient (Rahul)
-              </button>
-              <button
-                onClick={() => handleDevSwitch('doctor')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                  user?.role === 'doctor'
-                    ? 'bg-blue-500 text-white font-bold shadow-md'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
-              >
-                🥼 Doctor (Ananya)
-              </button>
-              <button
-                onClick={() => handleDevSwitch('admin')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                  user?.role === 'admin'
-                    ? 'bg-purple-500 text-white font-bold shadow-md'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
-              >
-                🔑 Admin (Animesh)
-              </button>
-              <button
-                onClick={() => setDevPanelExpanded(false)}
-                className="text-slate-500 hover:text-slate-300 ml-2"
-                title="Minimize panel"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setDevPanelExpanded(true)}
-              className="text-emerald-400 hover:underline font-medium hover:text-emerald-300 transition-all"
-            >
-              Expand Sandbox Controls ⚙️
-            </button>
-          )}
-        </div>
-      )}
 
       {/* ==========================================
           MAIN NAVIGATION BAR
