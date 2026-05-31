@@ -66,12 +66,6 @@ export default function Home() {
       alert('Please enter a valid 10-digit mobile number');
       return;
     }
-    
-    if (mobile === '8368825928') {
-      alert('Admin accounts must log in via the dedicated Admin Portal at /admin/login.');
-      router.push('/admin/login');
-      return;
-    }
 
     setLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -152,9 +146,9 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight leading-tight">
-            Comprehensive Medical Care <br />
+            Ananya Enterprises <br />
             <span className="bg-gradient-to-r from-teal-500 via-emerald-500 to-sky-600 bg-clip-text text-transparent">
-              Always at Your Fingertips
+              Doctor appointment booking app
             </span>
           </h1>
 
@@ -188,6 +182,15 @@ export default function Home() {
             >
               <PhoneCall className="h-4 w-4 text-teal-500 dark:text-teal-600 group-hover:animate-bounce" />
               Call Pharmacy Desk
+            </a>
+            <a
+              href="https://maps.app.goo.gl/FgzC3vY9Z7fbrquf6"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-6 py-3.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/50 rounded-2xl font-bold text-sm text-slate-600 dark:text-slate-350 transition-all flex items-center gap-1.5 justify-center"
+            >
+              <MapPin className="h-4 w-4 text-teal-500" />
+              Get Directions
             </a>
           </div>
         </div>
@@ -231,16 +234,6 @@ export default function Home() {
                   <ChevronRight className="h-4 w-4" />
                   {loading ? 'Checking Account...' : 'Continue'}
                 </button>
-
-                {/* Admin Portal Gateway Link */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
-                  <Link
-                    href="/admin/login"
-                    className="block py-2 px-3 bg-purple-950/40 border border-purple-500/20 text-purple-400 hover:bg-purple-900/30 rounded-xl text-[10px] font-extrabold transition-all"
-                  >
-                    🔑 Access Administrative Portal
-                  </Link>
-                </div>
               </form>
             )}
 
