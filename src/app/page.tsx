@@ -47,9 +47,7 @@ export default function Home() {
   const [regAge, setRegAge] = useState<number>(25);
   const [regPasscode, setRegPasscode] = useState('');
 
-  // Call Store Dialog
-  const [callActive, setCallActive] = useState(false);
-  const [callTimer, setCallTimer] = useState(0);
+
 
   // Redirect if already logged in
   useEffect(() => {
@@ -60,18 +58,7 @@ export default function Home() {
     }
   }, [user, router]);
 
-  // Call duration counter simulator
-  useEffect(() => {
-    let interval: any;
-    if (callActive) {
-      interval = setInterval(() => {
-        setCallTimer((prev) => prev + 1);
-      }, 1000);
-    } else {
-      setCallTimer(0);
-    }
-    return () => clearInterval(interval);
-  }, [callActive]);
+
 
   const handleCheckMobile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,13 +182,13 @@ export default function Home() {
 
           {/* Call Store & Fast Booking Widgets */}
           <div className="flex flex-wrap gap-4 pt-2">
-            <button
-              onClick={() => setCallActive(true)}
+            <a
+              href="tel:9717098219"
               className="px-6 py-3.5 bg-slate-900 dark:bg-white text-slate-100 dark:text-slate-950 rounded-2xl font-bold text-sm shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 group"
             >
               <PhoneCall className="h-4 w-4 text-teal-500 dark:text-teal-600 group-hover:animate-bounce" />
               Call Pharmacy Desk
-            </button>
+            </a>
             
             <a
               href="#pharmacy-intro"
@@ -480,52 +467,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ==========================================
-          INTERACTIVE MOCK PHONE CALL OVERLAY
-          ========================================== */}
-      {callActive && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md transition-all duration-300 animate-in fade-in">
-          <div className="w-80 bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 shadow-2xl flex flex-col items-center justify-between text-white aspect-[9/16] relative overflow-hidden animate-in slide-in-from-bottom-12 duration-500">
-            
-            {/* Soft decorative light */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-12 bg-slate-800 rounded-b-3xl flex items-center justify-center">
-              <div className="h-1.5 w-16 bg-slate-700 rounded-full" />
-            </div>
 
-            <div className="pt-16 flex flex-col items-center space-y-2">
-              <div className="h-20 w-20 rounded-full bg-gradient-to-tr from-teal-500 to-sky-600 flex items-center justify-center text-white text-3xl shadow-xl shadow-teal-500/20 font-bold border-2 border-slate-800 uppercase">
-                A
-              </div>
-              <h4 className="text-base font-extrabold tracking-wide mt-2">Ananya Enterprises</h4>
-              <p className="text-[10px] text-teal-400 font-semibold tracking-widest uppercase">Pharmacy Desk</p>
-              <p className="text-xs text-slate-500 font-mono mt-1">+91 99999-55663</p>
-            </div>
-
-            <div className="flex flex-col items-center space-y-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping mb-1" />
-              <p className="text-xs text-slate-300 font-semibold">Active Conversation</p>
-              <p className="text-2xl font-bold font-mono text-emerald-400 tracking-wider">
-                {formatCallTime(callTimer)}
-              </p>
-            </div>
-
-            <div className="pb-8 w-full flex flex-col items-center space-y-4">
-              <p className="text-[10px] text-slate-400 text-center max-w-[200px] leading-relaxed">
-                Consult with our senior pharmacist regarding medicines or order reservations.
-              </p>
-              
-              <button
-                onClick={() => setCallActive(false)}
-                className="h-14 w-14 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
-                title="End simulated call"
-              >
-                <Phone className="h-6 w-6 rotate-[135deg]" />
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
 
       {/* Footer Branding */}
       <footer className="py-6 border-t border-slate-200/50 dark:border-slate-900/50 text-center text-xs text-slate-400 bg-white/60 dark:bg-slate-950">
