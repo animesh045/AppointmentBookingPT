@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useApp, Appointment, Order } from '@/context/AppContext';
+import { useApp, Appointment, Order, UserProfile } from '@/context/AppContext';
 import { Navbar } from '@/components/Navbar';
 import { CartDrawer } from '@/components/CartDrawer';
 import { jsPDF } from 'jspdf';
@@ -22,11 +22,13 @@ import {
   Package,
   Activity,
   AlertCircle,
-  Phone
+  Phone,
+  User as UserIcon,
+  MapPin
 } from 'lucide-react';
 
 export default function ConsumerDashboard() {
-  const { user, appointments, payConsultationFee, orders, medicines, updateAppointmentStatus } = useApp();
+  const { user, appointments, payConsultationFee, orders, medicines, updateAppointmentStatus, updateProfile } = useApp();
   const router = useRouter();
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -37,6 +39,91 @@ export default function ConsumerDashboard() {
 
   // Prescription Viewer State
   const [activeViewPrescriptionApt, setActiveViewPrescriptionApt] = useState<Appointment | null>(null);
+
+  // Profile Modification States
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileAge, setProfileAge] = useState(25);
+  const [profileGender, setProfileGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [profilePasscode, setProfilePasscode] = useState('');
+  const [profileAddress, setProfileAddress] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  const handleOpenProfileModal = () => {
+    if (!user) return;
+    setProfileName(user.name);
+    setProfileEmail(user.email || '');
+    setProfileAge(user.age);
+    setProfileGender(user.gender);
+    setProfilePasscode(user.passcode);
+    setProfileAddress(user.address);
+    setProfileOpen(true);
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          );
+          const data = await response.json();
+          if (data && data.display_name) {
+            setProfileAddress(data.display_name);
+          } else {
+            setProfileAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+          }
+        } catch (error) {
+          console.error(error);
+          alert('Could not fetch address details. Falling back to coordinates.');
+        } finally {
+          setLocationLoading(false);
+        }
+      },
+      (error) => {
+        console.error(error);
+        alert(`Location Access Error: ${error.message}. Please enter manually.`);
+        setLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileName.trim()) {
+      alert('Full Name is required');
+      return;
+    }
+    if (!/^\d{4}$/.test(profilePasscode)) {
+      alert('Security PIN must be a 4-digit number');
+      return;
+    }
+    if (!profileAddress.trim()) {
+      alert('Residential Address is required');
+      return;
+    }
+
+    updateProfile({
+      name: profileName,
+      email: profileEmail || undefined,
+      age: Number(profileAge),
+      gender: profileGender,
+      passcode: profilePasscode,
+      address: profileAddress
+    });
+
+    setProfileOpen(false);
+    alert('Your patient profile was successfully updated!');
+  };
 
 
 
@@ -319,6 +406,13 @@ export default function ConsumerDashboard() {
               Call Pharmacy Desk
             </a>
             <button
+              onClick={handleOpenProfileModal}
+              className="py-2.5 px-4 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-350 font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow justify-center"
+            >
+              <UserIcon className="h-3.5 w-3.5 text-teal-500" />
+              Edit Profile
+            </button>
+            <button
               onClick={() => router.push('/dashboard/appointments')}
               className="py-2.5 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md shadow-teal-500/15"
             >
@@ -552,6 +646,137 @@ export default function ConsumerDashboard() {
 
         </div>
       </main>
+
+      {/* ==========================================
+          PROFILE EDIT MODAL DIALOG
+          ========================================== */}
+      {profileOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+            
+            {/* Close */}
+            <button
+              onClick={() => setProfileOpen(false)}
+              className="absolute top-5 right-5 p-1 rounded-lg text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+              <div className="h-10 w-10 bg-teal-500 text-white rounded-xl flex items-center justify-center font-bold text-lg">
+                <UserIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
+                  Update Patient Profile
+                </h4>
+                <p className="text-[10px] text-slate-400">Modify your secure clinic registration details.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-semibold text-slate-800 dark:text-slate-100 animate-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Email Address (Optional)</label>
+                  <input
+                    type="email"
+                    value={profileEmail}
+                    onChange={(e) => setProfileEmail(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-semibold text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Age</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={120}
+                    value={profileAge}
+                    onChange={(e) => setProfileAge(Number(e.target.value))}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-semibold text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Gender</label>
+                  <select
+                    value={profileGender}
+                    onChange={(e: any) => setProfileGender(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-semibold text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">4-Digit Security PIN</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    value={profilePasscode}
+                    onChange={(e) => setProfilePasscode(e.target.value.replace(/\D/g, ''))}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-semibold text-slate-800 dark:text-slate-100 font-mono tracking-widest text-center"
+                  />
+                </div>
+
+                <div className="space-y-1.5 col-span-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Residential Address</label>
+                    <button
+                      type="button"
+                      onClick={handleGetLocation}
+                      className="text-[10px] font-bold text-teal-500 hover:text-teal-400 flex items-center gap-1 transition-colors"
+                    >
+                      📍 {locationLoading ? 'Fetching Location...' : 'Use Current Location'}
+                    </button>
+                  </div>
+                  <textarea
+                    required
+                    rows={2}
+                    value={profileAddress}
+                    onChange={(e) => setProfileAddress(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs font-semibold text-slate-800 dark:text-slate-100 min-h-[50px]"
+                  />
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen(false)}
+                  className="w-1/3 py-3 border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-2xl font-bold text-xs transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-3 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-2xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                >
+                  Save Profile Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ==========================================
           RAZORPAY SECURE PAYMENT DIALOG SIMULATOR

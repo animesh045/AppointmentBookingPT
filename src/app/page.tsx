@@ -46,6 +46,43 @@ export default function Home() {
   const [regGender, setRegGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [regAge, setRegAge] = useState<number>(25);
   const [regPasscode, setRegPasscode] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          );
+          const data = await response.json();
+          if (data && data.display_name) {
+            setRegAddress(data.display_name);
+          } else {
+            setRegAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+          }
+        } catch (error) {
+          console.error(error);
+          alert('Could not fetch address details. Falling back to coordinates.');
+        } finally {
+          setLocationLoading(false);
+        }
+      },
+      (error) => {
+        console.error(error);
+        alert(`Location Access Error: ${error.message}. Please enter manually.`);
+        setLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
 
 
@@ -373,7 +410,16 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-400">Residential Address *</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-400">Residential Address *</label>
+                    <button
+                      type="button"
+                      onClick={handleGetLocation}
+                      className="text-[10px] font-bold text-teal-400 hover:text-teal-350 flex items-center gap-1 transition-colors"
+                    >
+                      📍 {locationLoading ? 'Fetching Location...' : 'Use Current Location'}
+                    </button>
+                  </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 pt-3 flex items-start text-slate-400">
                       <MapPin className="h-4 w-4" />
