@@ -278,7 +278,7 @@ const DEFAULT_USERS: UserProfile[] = [
   {
     uid: 'admin_1',
     name: 'Animesh Gupta (Admin)',
-    mobile: '9999999999',
+    mobile: '8368825928',
     passcode: '1234',
     email: 'admin@ananya.com',
     address: 'Ananya Enterprises, Main Market Road, New Delhi',
@@ -614,6 +614,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncStorage('ananya_users', updated);
     createLog('Change User Role', `Assigned role ${role} to UID: ${uid}`);
     addNotification(uid, 'Role Level Updated', `Your system privileges changed. New Role: ${role.toUpperCase()}`);
+
+    // If role is updated to doctor, ensure they have a DoctorProfile
+    if (role === 'doctor') {
+      const docExists = doctors.some((d) => d.uid === uid);
+      if (!docExists) {
+        const matchingUser = users.find((u) => u.uid === uid);
+        const newDoc: DoctorProfile = {
+          uid: uid,
+          name: matchingUser ? matchingUser.name : 'Dr. Practitioner',
+          specialty: 'General Medicine',
+          fees: 500,
+          availability: {
+            days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            slots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM']
+          },
+          profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
+          rating: 5.0
+        };
+        const updatedDoctors = [...doctors, newDoc];
+        setDoctors(updatedDoctors);
+        syncStorage('ananya_doctors', updatedDoctors);
+      }
+    }
 
     // If changing role of current logged in user
     if (user && user.uid === uid) {

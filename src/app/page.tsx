@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { Navbar } from '@/components/Navbar';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -78,6 +79,13 @@ export default function Home() {
       alert('Please enter a valid 10-digit mobile number');
       return;
     }
+    
+    if (mobile === '8368825928') {
+      alert('Admin accounts must log in via the dedicated Admin Portal at /admin/login.');
+      router.push('/admin/login');
+      return;
+    }
+
     setLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 600));
     setLoading(false);
@@ -246,11 +254,11 @@ export default function Home() {
                 </button>
 
                 {/* Developer Demo Accounts Quick Links */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-center">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block text-center">
                     📦 Developer Demo Sign-In
                   </span>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => { setMobile('7777777777'); setPasscode('1234'); setStep('passcode'); }}
@@ -265,14 +273,14 @@ export default function Home() {
                     >
                       Doctor Login
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => { setMobile('9999999999'); setPasscode('1234'); setStep('passcode'); }}
-                      className="py-1 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-purple-500/10 border border-slate-200/50 dark:border-slate-800 rounded-lg text-[10px] font-semibold text-slate-600 dark:text-slate-300 transition-all"
-                    >
-                      Admin Login
-                    </button>
                   </div>
+                  
+                  <Link
+                    href="/admin/login"
+                    className="mt-3 block py-2 px-3 bg-purple-950/40 border border-purple-500/20 text-purple-400 hover:bg-purple-900/30 rounded-xl text-[10px] font-extrabold transition-all"
+                  >
+                    🔑 Access Administrative Portal
+                  </Link>
                 </div>
               </form>
             )}

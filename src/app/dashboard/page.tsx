@@ -35,6 +35,9 @@ export default function ConsumerDashboard() {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'upi' | 'netbanking'>('card');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
+  // Prescription Viewer State
+  const [activeViewPrescriptionApt, setActiveViewPrescriptionApt] = useState<Appointment | null>(null);
+
   // Call Store Dialog
   const [callActive, setCallActive] = useState(false);
   const [callTimer, setCallTimer] = useState(0);
@@ -223,32 +226,34 @@ export default function ConsumerDashboard() {
     const splitNotes = doc.splitTextToSize(notesText, 180);
     doc.text(splitNotes, 15, 126);
 
-    // Medication table
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Prescribed Medicines & Schedule:', 15, 160);
-    doc.line(15, 165, 195, 165);
-    
-    doc.setFontSize(10);
-    doc.text('Medicine Name', 15, 172);
-    doc.text('Dosage Schedule', 90, 172);
-    doc.text('Duration', 160, 172);
-    doc.line(15, 176, 195, 176);
+    if (!apt.notes) {
+      // Medication table
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Prescribed Medicines & Schedule:', 15, 160);
+      doc.line(15, 165, 195, 165);
+      
+      doc.setFontSize(10);
+      doc.text('Medicine Name', 15, 172);
+      doc.text('Dosage Schedule', 90, 172);
+      doc.text('Duration', 160, 172);
+      doc.line(15, 176, 195, 176);
 
-    doc.setFont('helvetica', 'normal');
-    doc.text('1. Atorvastatin 10mg (Lipitor)', 15, 184);
-    doc.text('Once daily (Before bedtime)', 90, 184);
-    doc.text('30 Days', 160, 184);
+      doc.setFont('helvetica', 'normal');
+      doc.text('1. Atorvastatin 10mg (Lipitor)', 15, 184);
+      doc.text('Once daily (Before bedtime)', 90, 184);
+      doc.text('30 Days', 160, 184);
 
-    doc.text('2. Revital H Multivitamin Capsule', 15, 194);
-    doc.text('Once daily (After breakfast)', 90, 194);
-    doc.text('15 Days', 160, 194);
+      doc.text('2. Revital H Multivitamin Capsule', 15, 194);
+      doc.text('Once daily (After breakfast)', 90, 194);
+      doc.text('15 Days', 160, 194);
 
-    doc.text('3. Paracetamol 650mg (Dolo)', 15, 204);
-    doc.text('As needed (SOS for fever/body pain)', 90, 204);
-    doc.text('5 Days', 160, 204);
+      doc.text('3. Paracetamol 650mg (Dolo)', 15, 204);
+      doc.text('As needed (SOS for fever/body pain)', 90, 204);
+      doc.text('5 Days', 160, 204);
 
-    doc.line(15, 214, 195, 214);
+      doc.line(15, 214, 195, 214);
+    }
 
     // Signature Block
     doc.setFont('helvetica', 'italic');
@@ -466,11 +471,17 @@ export default function ConsumerDashboard() {
                               <Download className="h-3.5 w-3.5" /> Receipt
                             </button>
                             <button
+                              onClick={() => setActiveViewPrescriptionApt(apt)}
+                              className="py-2 px-3.5 bg-teal-950/40 hover:bg-teal-900/40 border border-teal-800/60 text-teal-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                            >
+                              👁️ View Prescription
+                            </button>
+                            <button
                               onClick={() => downloadPrescriptionPdf(apt)}
                               className="py-2 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all hover:scale-[1.02]"
                             >
                               <FileText className="h-3.5 w-3.5" />
-                              Download Prescription
+                              Download PDF
                             </button>
                           </>
                         )}
@@ -672,6 +683,75 @@ export default function ConsumerDashboard() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          REAL-TIME PRESCRIPTION VIEWER OVERLAY
+          ========================================== */}
+      {activeViewPrescriptionApt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-1.5">
+                <FileText className="h-5 w-5 text-teal-400 animate-pulse" /> 
+                Clinical Prescription Record
+              </h3>
+              <button
+                onClick={() => setActiveViewPrescriptionApt(null)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-800"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Doctor Details Summary Box */}
+              <div className="flex items-center gap-3 p-3 bg-slate-950/50 border border-slate-800 rounded-2xl text-xs">
+                <div className="h-10 w-10 bg-teal-950/40 text-teal-400 flex items-center justify-center rounded-xl font-bold border border-teal-900/50">
+                  🩺
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">{activeViewPrescriptionApt.doctorName}</h4>
+                  <p className="text-[10px] text-slate-400">{activeViewPrescriptionApt.specialty}</p>
+                </div>
+                <div className="ml-auto text-right text-[10px] text-slate-500">
+                  <p>Date: {activeViewPrescriptionApt.date}</p>
+                  <p className="font-mono mt-0.5">{activeViewPrescriptionApt.id}</p>
+                </div>
+              </div>
+
+              {/* Prescription Body Text Box */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-bold text-slate-400">Clinical Directives & Prescriptions:</span>
+                <div className="w-full p-4 rounded-xl border border-slate-800 bg-slate-950/30 text-xs font-mono leading-relaxed whitespace-pre-wrap min-h-[150px] text-slate-350 select-text">
+                  {activeViewPrescriptionApt.notes || "No custom diagnostic notes recorded by doctor yet."}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2 text-xs">
+                <button
+                  onClick={() => setActiveViewPrescriptionApt(null)}
+                  className="py-2.5 px-4 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    downloadPrescriptionPdf(activeViewPrescriptionApt);
+                    setActiveViewPrescriptionApt(null);
+                  }}
+                  className="py-2.5 px-5 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white font-bold rounded-xl shadow-lg flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Save PDF Copy
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

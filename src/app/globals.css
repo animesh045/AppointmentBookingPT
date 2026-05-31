@@ -3,29 +3,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --background: 210 40% 98%; /* Slate-50 */
-  --foreground: 222.2 84% 4.9%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  
-  --primary: 173 80% 40%; /* Modern Teal-600 */
-  --primary-foreground: 210 40% 98%;
-  
-  --secondary: 200 95% 39%; /* Premium Sky-700 */
-  --secondary-foreground: 210 40% 98%;
-  
-  --accent: 152 76% 40%; /* Emerald-600 */
-  --accent-foreground: 210 40% 98%;
-
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  
-  --border: 214.3 31.8% 91.4%;
-  --radius: 1rem;
-}
-
-.dark {
   --background: 222.2 84% 4.9%; /* Deep Slate Black */
   --foreground: 210 40% 98%;
   
@@ -39,6 +16,29 @@
   --secondary-foreground: 210 40% 98%;
   
   --accent: 152 76% 45%; /* Neon Mint */
+  --accent-foreground: 222.2 84% 4.9%;
+
+  --muted: 217.2 32.6% 12%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --border: 217.2 32.6% 17.5%;
+  --radius: 1rem;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  
+  --card: 222.2 84% 7%;
+  --card-foreground: 210 40% 98%;
+  
+  --primary: 173 80% 45%;
+  --primary-foreground: 222.2 84% 4.9%;
+  
+  --secondary: 200 95% 45%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --accent: 152 76% 45%;
   --accent-foreground: 222.2 84% 4.9%;
 
   --muted: 217.2 32.6% 12%;

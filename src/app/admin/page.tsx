@@ -203,9 +203,14 @@ export default function AdminPanel() {
 
   // Assign Meeting Link logic
   const handleAssignMeeting = (aptId: string) => {
-    const defaultMeet = `https://meet.google.com/ananya-room-${Math.floor(100 + Math.random() * 900)}`;
-    updateAppointmentStatus(aptId, 'approved', undefined, defaultMeet);
-    alert('Simulated Google Meet consultation link generated and sent to doctor & patient instantly!');
+    const manualMeet = prompt('Enter Google Meet or Zoom URL manually for this consultation:', 'https://meet.google.com/');
+    if (manualMeet === null) return; // Cancelled
+    if (!manualMeet.trim()) {
+      alert('Meeting link cannot be empty.');
+      return;
+    }
+    updateAppointmentStatus(aptId, 'approved', undefined, manualMeet.trim());
+    alert('Meeting link successfully assigned manually!');
   };
 
   const getFilteredUsers = () => {
