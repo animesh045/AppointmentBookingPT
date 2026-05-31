@@ -616,6 +616,94 @@ export default function AdminPanel() {
                       className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
+
+                  {/* Dynamic Availability Days */}
+                  <div className="sm:col-span-2 space-y-2">
+                    <label className="text-slate-400 font-bold">Available Consultation Days *</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                        const isChecked = docDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              if (isChecked) {
+                                setDocDays(docDays.filter((d) => d !== day));
+                              } else {
+                                setDocDays([...docDays, day]);
+                              }
+                            }}
+                            className={`py-1.5 px-3 rounded-lg border text-[10px] font-bold uppercase transition-all ${
+                              isChecked
+                                ? 'bg-purple-950/40 border-purple-500 text-purple-400'
+                                : 'border-slate-850 bg-transparent text-slate-400 hover:border-slate-850'
+                            }`}
+                          >
+                            {day.substring(0, 3)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Dynamic Availability Slots */}
+                  <div className="sm:col-span-2 space-y-2">
+                    <label className="text-slate-400 font-bold">Time Slots *</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="e.g. 09:30 AM or 12:15 PM"
+                        id="new-slot-input"
+                        className="flex-1 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-purple-500 text-xs font-semibold text-slate-200"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const val = e.currentTarget.value.trim();
+                            if (val && !docSlots.includes(val)) {
+                              setDocSlots([...docSlots, val]);
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const input = document.getElementById('new-slot-input') as HTMLInputElement;
+                          const val = input?.value.trim();
+                          if (val && !docSlots.includes(val)) {
+                            setDocSlots([...docSlots, val]);
+                            input.value = '';
+                          }
+                        }}
+                        className="py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {docSlots.length === 0 ? (
+                        <span className="text-[10px] text-slate-500">No time slots added yet.</span>
+                      ) : (
+                        docSlots.map((slot) => (
+                          <span
+                            key={slot}
+                            className="inline-flex items-center gap-1 bg-slate-900 border border-slate-800 text-slate-350 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold"
+                          >
+                            {slot}
+                            <button
+                              type="button"
+                              onClick={() => setDocSlots(docSlots.filter((s) => s !== slot))}
+                              className="text-red-500 hover:text-red-400 ml-1 font-bold text-xs"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 text-xs pt-2">

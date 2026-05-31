@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
-  const { user, appointments, updateAppointmentStatus } = useApp();
+  const { user, appointments, updateAppointmentStatus, doctors, updateDoctor } = useApp();
   const router = useRouter();
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -30,6 +30,18 @@ export default function DoctorDashboard() {
   const [activePrescribingApt, setActivePrescribingApt] = useState<Appointment | null>(null);
   const [clinicNotes, setClinicNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Availability Settings States
+  const doctorProfile = doctors.find((d) => d.uid === user?.uid);
+  const [editDays, setEditDays] = useState<string[]>([]);
+  const [editSlots, setEditSlots] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (doctorProfile) {
+      setEditDays(doctorProfile.availability.days);
+      setEditSlots(doctorProfile.availability.slots);
+    }
+  }, [doctorProfile]);
 
   // Security Redirects
   useEffect(() => {
@@ -302,6 +314,130 @@ export default function DoctorDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* CLINIC AVAILABILITY CALENDAR MANAGER */}
+            {doctorProfile && (
+              <div className="glass-card p-6 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-5 mt-6 text-left">
+                <div className="pb-3 border-b border-slate-100 dark:border-slate-800/60">
+                  <h3 className="text-sm font-extrabold text-slate-850 dark:text-slate-100 flex items-center gap-2">
+                    <Calendar className="h-4.5 w-4.5 text-purple-500" />
+                    Manage Consultation Calendar
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1">Configure your working days and daily consultation slots dynamically.</p>
+                </div>
+
+                {/* Days Editor */}
+                <div className="space-y-2 text-xs">
+                  <label className="text-slate-400 font-bold block">Available Days *</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                      const isChecked = editDays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            if (isChecked) {
+                              setEditDays(editDays.filter((d) => d !== day));
+                            } else {
+                              setEditDays([...editDays, day]);
+                            }
+                          }}
+                          className={`py-1.5 px-3 rounded-lg border text-[9px] font-bold uppercase transition-all ${
+                            isChecked
+                              ? 'bg-purple-950/40 border-purple-500 text-purple-400 font-extrabold'
+                              : 'border-slate-800 bg-transparent text-slate-400 hover:border-slate-850'
+                          }`}
+                        >
+                          {day.substring(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Slots Editor */}
+                <div className="space-y-2 text-xs">
+                  <label className="text-slate-400 font-bold block">Time Slots *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. 10:30 AM"
+                      id="doc-new-slot-input"
+                      className="flex-1 p-2 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent text-xs font-semibold text-slate-255"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim();
+                          if (val && !editSlots.includes(val)) {
+                            setEditSlots([...editSlots, val]);
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const input = document.getElementById('doc-new-slot-input') as HTMLInputElement;
+                        const val = input?.value.trim();
+                        if (val && !editSlots.includes(val)) {
+                          setEditSlots([...editSlots, val]);
+                          input.value = '';
+                        }
+                      }}
+                      className="py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-1.5 pt-1.5 max-h-36 overflow-y-auto pr-1">
+                    {editSlots.length === 0 ? (
+                      <span className="text-[10px] text-slate-500">No time slots configured.</span>
+                    ) : (
+                      editSlots.map((slot) => (
+                        <span
+                          key={slot}
+                          className="inline-flex items-center gap-1 bg-slate-900 border border-slate-800 text-slate-350 px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold"
+                        >
+                          {slot}
+                          <button
+                            type="button"
+                            onClick={() => setEditSlots(editSlots.filter((s) => s !== slot))}
+                            className="text-red-500 hover:text-red-400 ml-1 font-bold text-xs"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editDays.length === 0) {
+                      alert('Please select at least one available day.');
+                      return;
+                    }
+                    if (editSlots.length === 0) {
+                      alert('Please add at least one available time slot.');
+                      return;
+                    }
+                    updateDoctor(doctorProfile.uid, {
+                      availability: { days: editDays, slots: editSlots }
+                    });
+                    alert('Your clinical schedule and available time slots have been successfully updated!');
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-bold text-xs shadow-md transition-all hover:scale-[1.01]"
+                >
+                  Save Clinic Schedule
+                </button>
               </div>
             )}
           </section>
