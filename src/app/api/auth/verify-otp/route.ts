@@ -72,41 +72,44 @@ export async function POST(request: Request) {
     }
 
     // Try to initialize Firebase Admin and generate Custom Token
-    const adminApp = initFirebaseAdmin();
     let customToken = '';
     let isMock = true;
 
     const formattedPhone = `+91${mobile}`;
     const customUid = `phone_91_${mobile}`;
 
-    if (adminApp) {
-      try {
-        isMock = false;
-        const authAdmin = getAuth(adminApp);
-        let userRecord;
+    // Skip Firebase Admin SDK calls when using the bypass demo OTP code to avoid serverless timeouts
+    if (otp !== '123456') {
+      const adminApp = initFirebaseAdmin();
+      if (adminApp) {
         try {
-          userRecord = await authAdmin.getUserByPhoneNumber(formattedPhone);
-        } catch (err: any) {
-          if (err.code === 'auth/user-not-found') {
-            // User doesn't exist in Firebase Auth yet, create them
-            userRecord = await authAdmin.createUser({
-              phoneNumber: formattedPhone,
-              displayName: `Patient ${mobile}`,
-            });
-            console.log(`[Firebase Auth] Created new user: ${userRecord.uid} for phone ${formattedPhone}`);
-          } else {
-            throw err;
+          isMock = false;
+          const authAdmin = getAuth(adminApp);
+          let userRecord;
+          try {
+            userRecord = await authAdmin.getUserByPhoneNumber(formattedPhone);
+          } catch (err: any) {
+            if (err.code === 'auth/user-not-found') {
+              // User doesn't exist in Firebase Auth yet, create them
+              userRecord = await authAdmin.createUser({
+                phoneNumber: formattedPhone,
+                displayName: `Patient ${mobile}`,
+              });
+              console.log(`[Firebase Auth] Created new user: ${userRecord.uid} for phone ${formattedPhone}`);
+            } else {
+              throw err;
+            }
           }
-        }
 
-        // Generate Custom Token
-        customToken = await authAdmin.createCustomToken(userRecord.uid, {
-          mobile,
-          verified: true
-        });
-      } catch (authErr) {
-        console.error('Firebase Custom Token generation failed, falling back to mock:', authErr);
-        isMock = true;
+          // Generate Custom Token
+          customToken = await authAdmin.createCustomToken(userRecord.uid, {
+            mobile,
+            verified: true
+          });
+        } catch (authErr) {
+          console.error('Firebase Custom Token generation failed, falling back to mock:', authErr);
+          isMock = true;
+        }
       }
     }
 
