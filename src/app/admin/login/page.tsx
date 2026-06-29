@@ -196,8 +196,8 @@ export default function AdminLogin() {
         </div>
       </main>
 
-      <footer className="py-6 border-t border-slate-900 text-center text-xs text-slate-500 bg-slate-950">
-        <p className="font-bold text-slate-400">ANANYA ENTERPRISES SYSTEM</p>
+      <footer className="py-6 border-t border-slate-200 text-center text-xs text-slate-500 bg-slate-50">
+        <p className="font-bold text-slate-600">ANANYA ENTERPRISES SYSTEM</p>
         <p className="mt-1 text-[10px]">Created by Animesh • Secure Clinic and Stock Platform</p>
       </footer>
     </div>

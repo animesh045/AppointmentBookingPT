@@ -129,7 +129,7 @@ export default function PharmacyStore() {
           <div className="flex gap-3 relative">
             <button
               onClick={() => setCallActive(true)}
-              className="py-2.5 px-4 bg-slate-950 dark:bg-white text-slate-100 dark:text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow"
+              className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow"
             >
               <PhoneCall className="h-3.5 w-3.5 text-teal-500 dark:text-teal-600" />
               Quick Call Store
