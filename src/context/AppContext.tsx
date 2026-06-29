@@ -415,6 +415,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const revisedAdmin = { ...docs[adminIdx], role: 'admin' as const, passcode: '1234' };
             setDoc(doc(db, 'users', revisedAdmin.uid), revisedAdmin);
           }
+
+          // Check if default doctor is in the database and has correct role/passcode
+          const doctorIdx = docs.findIndex((u) => u.mobile === '8888888888');
+          if (doctorIdx === -1) {
+            const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888');
+            if (defaultDoctor) {
+              setDoc(doc(db, 'users', defaultDoctor.uid), defaultDoctor);
+            }
+          }
+
           setUsers(docs);
         }
       });
@@ -628,6 +638,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           parsed[adminIndex].role = 'admin';
           parsed[adminIndex].passcode = '1234';
           localStorage.setItem('ananya_users', JSON.stringify(parsed));
+        }
+
+        const doctorIndex = parsed.findIndex((u: any) => u.mobile === '8888888888');
+        if (doctorIndex === -1) {
+          const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888');
+          if (defaultDoctor) {
+            parsed.push(defaultDoctor);
+            localStorage.setItem('ananya_users', JSON.stringify(parsed));
+          }
         }
         setUsers(parsed);
       } else {
