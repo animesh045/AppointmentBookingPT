@@ -547,23 +547,31 @@ export default function ConsumerDashboard() {
                           <>
                             <button
                               onClick={() => downloadReceiptPdf(apt)}
-                              className="py-2 px-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                              className="py-2 px-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 font-bold rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
                             >
                               <Download className="h-3.5 w-3.5" /> Receipt
                             </button>
-                            <button
-                              onClick={() => setActiveViewPrescriptionApt(apt)}
-                              className="py-2 px-3.5 bg-teal-950/40 hover:bg-teal-900/40 border border-teal-800/60 text-teal-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                            >
-                              👁️ View Prescription
-                            </button>
-                            <button
-                              onClick={() => downloadPrescriptionPdf(apt)}
-                              className="py-2 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all hover:scale-[1.02]"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              Download PDF
-                            </button>
+                            {apt.prescriptionReleased ? (
+                              <>
+                                <button
+                                  onClick={() => setActiveViewPrescriptionApt(apt)}
+                                  className="py-2 px-3.5 bg-teal-950/40 hover:bg-teal-900/40 border border-teal-800/60 text-teal-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                                >
+                                  👁️ View Prescription
+                                </button>
+                                <button
+                                  onClick={() => downloadPrescriptionPdf(apt)}
+                                  className="py-2 px-4 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all hover:scale-[1.02]"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  Download PDF
+                                </button>
+                              </>
+                            ) : (
+                              <span className="py-2 px-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold rounded-xl text-[10px] flex items-center gap-1">
+                                🔒 Locked (Awaiting Admin Release)
+                              </span>
+                            )}
                           </>
                         )}
                       </div>

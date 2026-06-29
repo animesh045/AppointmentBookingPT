@@ -18,11 +18,12 @@ import {
   Activity, 
   Stethoscope, 
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Trash2
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
-  const { user, appointments, updateAppointmentStatus, doctors, updateDoctor } = useApp();
+  const { user, appointments, updateAppointmentStatus, doctors, updateDoctor, medicines } = useApp();
   const router = useRouter();
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -30,6 +31,62 @@ export default function DoctorDashboard() {
   const [activePrescribingApt, setActivePrescribingApt] = useState<Appointment | null>(null);
   const [clinicNotes, setClinicNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Structured prescription states
+  const [prescribedItems, setPrescribedItems] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [medSuggestions, setMedSuggestions] = useState<any[]>([]);
+  const [qtyValue, setQtyValue] = useState('1');
+  const [qtyUnit, setQtyUnit] = useState<'tablet' | 'ml' | 'spoon'>('tablet');
+  const [frequency, setFrequency] = useState<'1' | '2' | '3'>('1');
+  const [foodTiming, setFoodTiming] = useState<'before' | 'after'>('after');
+  const [mealTiming, setMealTiming] = useState<'breakfast' | 'lunch' | 'dinner'>('breakfast');
+
+  // Search autocomplete effect
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setMedSuggestions([]);
+      return;
+    }
+    const filtered = medicines.filter((m) =>
+      m.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setMedSuggestions(filtered);
+  }, [searchQuery, medicines]);
+
+  const handleSelectMed = (name: string) => {
+    setSearchQuery(name);
+    setMedSuggestions([]);
+  };
+
+  const handleAddMedicine = (e: any) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      alert('Please enter or select a medicine name');
+      return;
+    }
+    const newItem = {
+      name: searchQuery.trim(),
+      qtyValue,
+      qtyUnit,
+      frequency,
+      foodTiming,
+      mealTiming: frequency === '1' ? mealTiming : undefined
+    };
+    setPrescribedItems([...prescribedItems, newItem]);
+    
+    // Reset selection fields
+    setSearchQuery('');
+    setQtyValue('1');
+    setQtyUnit('tablet');
+    setFrequency('1');
+    setFoodTiming('after');
+    setMealTiming('breakfast');
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setPrescribedItems(prescribedItems.filter((_, i) => i !== index));
+  };
 
   // Availability Settings States
   const doctorProfile = doctors.find((d) => d.uid === user?.uid);
@@ -73,24 +130,47 @@ export default function DoctorDashboard() {
 
   const handleOpenPrescriptionWriter = (apt: Appointment) => {
     setActivePrescribingApt(apt);
-    setClinicNotes(apt.notes || '');
+    // Parse notes to retrieve only clinical notes if we previously formatted it, or load raw notes
+    const rawNotes = apt.notes || '';
+    const cleanNotes = rawNotes.includes('DIAGNOSIS & CLINICAL NOTES:')
+      ? rawNotes.split('DIAGNOSIS & CLINICAL NOTES:')[1].split('PRESCRIBED MEDICINES:')[0].trim()
+      : rawNotes;
+    setClinicNotes(cleanNotes);
+    setPrescribedItems(apt.prescriptionMedicines || []);
   };
 
   const handleSavePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePrescribingApt) return;
-    if (!clinicNotes.trim()) {
-      alert('Please enter clinical diagnostic notes or prescription details.');
+    if (!clinicNotes.trim() && prescribedItems.length === 0) {
+      alert('Please enter clinical diagnostic notes or add at least one medicine.');
       return;
     }
 
     setLoading(true);
     // Simulate prescription network sync
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    updateAppointmentStatus(activePrescribingApt.id, 'completed', clinicNotes);
+
+    let formattedNotes = clinicNotes.trim();
+    if (prescribedItems.length > 0) {
+      const medListText = prescribedItems.map((item, idx) => {
+        const timingText = item.foodTiming === 'before' ? 'Before Food' : 'After Food';
+        const mealText = item.mealTiming ? ` (${item.mealTiming.toUpperCase()})` : '';
+        return `${idx + 1}. ${item.name} -- ${item.qtyValue} ${item.qtyUnit}(s), ${item.frequency} times a day [${timingText}${mealText}]`;
+      }).join('\n');
+      
+      formattedNotes = `DIAGNOSIS & CLINICAL NOTES:\n${clinicNotes.trim() || 'General medical review.'}\n\nPRESCRIBED MEDICINES:\n${medListText}`;
+    }
+
+    updateAppointmentStatus(activePrescribingApt.id, 'completed', formattedNotes, undefined, {
+      prescriptionMedicines: prescribedItems,
+      prescriptionReleased: false
+    });
+
     setLoading(false);
     setActivePrescribingApt(null);
     setClinicNotes('');
+    setPrescribedItems([]);
   };
 
   return (
@@ -450,7 +530,7 @@ export default function DoctorDashboard() {
           ========================================== */}
       {activePrescribingApt && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left max-h-[90vh] overflow-y-auto">
             
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
@@ -470,41 +550,233 @@ export default function DoctorDashboard() {
               {/* Patient mini summary card */}
               <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-2xl grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <span className="text-slate-400 block">Patient Name</span>
+                  <span className="text-slate-400 block text-[9px] font-bold uppercase">Patient Name</span>
                   <span className="font-bold">{activePrescribingApt.patientName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Ref Code</span>
+                  <span className="text-slate-400 block text-[9px] font-bold uppercase">Ref Code</span>
                   <span className="font-mono font-bold">{activePrescribingApt.id}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Appt Date</span>
+                  <span className="text-slate-400 block text-[9px] font-bold uppercase">Appt Date</span>
                   <span className="font-bold">{activePrescribingApt.date}</span>
                 </div>
               </div>
 
               {/* Consultation Notes text area */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-400">Diagnostic Summary & Prescription Formulations *</label>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  Define the diagnosis, write general patient notes, and specify exact drug schedules (e.g. Lipitor 10mg: Once daily, Dolo 650mg: SOS pain).
-                </p>
+                <label className="text-xs font-bold text-slate-450 dark:text-slate-350">Diagnostic Summary & General Advice</label>
                 <textarea
-                  placeholder="Enter patient diagnosis summary. Write names, dosages, and guidelines..."
-                  required
-                  rows={8}
+                  placeholder="Enter patient diagnosis summary or clinical recommendations..."
+                  rows={2}
                   disabled={activePrescribingApt.status === 'completed'}
                   value={clinicNotes}
                   onChange={(e) => setClinicNotes(e.target.value)}
-                  className="w-full p-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono leading-relaxed"
+                  className="w-full p-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-500 font-sans leading-relaxed"
                 />
+              </div>
+
+              {/* Structured Medication Builder */}
+              {activePrescribingApt.status !== 'completed' && (
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-850/30 border border-slate-200/50 dark:border-slate-800/60 rounded-2xl space-y-4">
+                  <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    ⚕️ Add Prescribed Medication
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    {/* Medicine Search Autocomplete */}
+                    <div className="space-y-1.5 relative">
+                      <label className="text-[10px] font-bold text-slate-400">Search Medicine Formulation</label>
+                      <input
+                        type="text"
+                        placeholder="Type to search (e.g. Paracetamol, Lipitor...)"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-550"
+                      />
+                      
+                      {/* Suggestion list */}
+                      {medSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-[110] text-[11px]">
+                          {medSuggestions.map((m) => (
+                            <div
+                              key={m.id}
+                              onClick={() => handleSelectMed(m.name)}
+                              className="p-2 hover:bg-slate-50 dark:hover:bg-slate-750 cursor-pointer font-semibold border-b border-slate-100 dark:border-slate-850 last:border-b-0 text-slate-700 dark:text-slate-200"
+                            >
+                              💊 {m.name} <span className="text-[9px] text-slate-400 font-normal">({m.category})</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quantity & Unit */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400">Quantity & Unit</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. 1, 5, 10"
+                          value={qtyValue}
+                          onChange={(e) => setQtyValue(e.target.value)}
+                          className="w-20 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none text-center focus:ring-1 focus:ring-teal-550"
+                        />
+                        <div className="flex-1 flex gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                          {['tablet', 'ml', 'spoon'].map((unit) => (
+                            <button
+                              key={unit}
+                              type="button"
+                              onClick={() => setQtyUnit(unit as any)}
+                              className={`flex-1 py-1 px-1 rounded-lg text-[9px] font-bold uppercase transition-all ${
+                                qtyUnit === unit
+                                  ? 'bg-teal-500 text-white dark:bg-teal-600 shadow'
+                                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              {unit}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Frequency */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400">Daily Frequency</label>
+                      <div className="flex gap-1.5">
+                        {['1', '2', '3'].map((freq) => (
+                          <button
+                            key={freq}
+                            type="button"
+                            onClick={() => setFrequency(freq as any)}
+                            className={`flex-1 py-2 px-2 rounded-xl text-[10px] font-bold border transition-all ${
+                              frequency === freq
+                                ? 'bg-teal-500/10 border-teal-500 text-teal-600 dark:text-teal-400'
+                                : 'border-slate-200 dark:border-slate-750 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900'
+                            }`}
+                          >
+                            {freq} Time(s) daily
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Timing (Before/After Food) */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400">Timing (Before/After Food)</label>
+                      <div className="flex gap-1.5">
+                        {['before', 'after'].map((timing) => (
+                          <button
+                            key={timing}
+                            type="button"
+                            onClick={() => setFoodTiming(timing as any)}
+                            className={`flex-1 py-2 px-2 rounded-xl text-[10px] font-bold border transition-all ${
+                              foodTiming === timing
+                                ? 'bg-teal-500/10 border-teal-500 text-teal-600 dark:text-teal-400'
+                                : 'border-slate-200 dark:border-slate-750 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900'
+                            }`}
+                          >
+                            {timing === 'before' ? 'Before Food' : 'After Food'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Meal Specific Timing (Specially for Frequency 1) */}
+                  {frequency === '1' && (
+                    <div className="space-y-1.5 max-w-md">
+                      <label className="text-[10px] font-bold text-slate-450 dark:text-slate-350">Meal Timing Option (Required for 1x Daily)</label>
+                      <div className="flex gap-1.5">
+                        {['breakfast', 'lunch', 'dinner'].map((meal) => (
+                          <button
+                            key={meal}
+                            type="button"
+                            onClick={() => setMealTiming(meal as any)}
+                            className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold border transition-all ${
+                              mealTiming === meal
+                                ? 'bg-teal-550/20 border-teal-500 text-teal-650 dark:text-teal-400 font-extrabold'
+                                : 'border-slate-200 dark:border-slate-750 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900'
+                            }`}
+                          >
+                            {meal.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add Button */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleAddMedicine}
+                      className="py-2 px-4 bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1"
+                    >
+                      <span>➕ Add to Prescription List</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Active Prescribed Medicines Table */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                  Prescribed Medication List ({prescribedItems.length})
+                </h4>
+                {prescribedItems.length === 0 ? (
+                  <div className="p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center text-[10px] text-slate-400 font-semibold">
+                    No medications added yet. Use the tool above to add drugs to the prescription sheet.
+                  </div>
+                ) : (
+                  <div className="border border-slate-200/60 dark:border-slate-800/60 rounded-2xl overflow-hidden bg-slate-50/20 dark:bg-slate-950/20">
+                    <table className="w-full text-left text-[11px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-850/40 text-slate-400 font-bold">
+                          <th className="py-2 px-3">Medicine</th>
+                          <th className="py-2 px-3">Dosage Qty</th>
+                          <th className="py-2 px-3">Frequency & Timing</th>
+                          {activePrescribingApt.status !== 'completed' && <th className="py-2 px-3 text-right">Remove</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {prescribedItems.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-100/40 dark:hover:bg-slate-800/20 font-medium">
+                            <td className="py-2.5 px-3 font-bold text-slate-700 dark:text-slate-300">{item.name}</td>
+                            <td className="py-2.5 px-3 font-mono">{item.qtyValue} {item.qtyUnit}(s)</td>
+                            <td className="py-2.5 px-3 text-[10px]">
+                              <span className="capitalize">{item.frequency} times daily</span>
+                              <span className="text-slate-400 capitalize"> ({item.foodTiming} food{item.mealTiming ? ` - ${item.mealTiming}` : ''})</span>
+                            </td>
+                            {activePrescribingApt.status !== 'completed' && (
+                              <td className="py-2.5 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveItem(idx)}
+                                  className="text-red-500 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 p-1 rounded-lg transition-all"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setActivePrescribingApt(null)}
+                  onClick={() => {
+                    setActivePrescribingApt(null);
+                    setClinicNotes('');
+                    setPrescribedItems([]);
+                  }}
                   className="py-2.5 px-4 border border-slate-200 dark:border-slate-850 hover:bg-slate-50 text-xs font-bold rounded-xl"
                 >
                   Close
@@ -513,7 +785,7 @@ export default function DoctorDashboard() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="py-2.5 px-5 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow"
+                    className="py-2.5 px-5 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-teal-500/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
                   >
                     {loading ? 'Submitting Form...' : 'Seal & Send Consultation'}
                   </button>

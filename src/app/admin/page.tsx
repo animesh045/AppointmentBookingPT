@@ -44,6 +44,7 @@ export default function AdminPanel() {
     updateDoctor,
     deleteDoctor,
     updateAppointmentStatus,
+    assignDoctorToAppointment,
     addMedicine,
     updateMedicine,
     removeMedicine,
@@ -796,9 +797,38 @@ export default function AdminPanel() {
                         <p className="font-bold">{apt.patientName}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">Mob: {apt.patientMobile}</p>
                       </td>
-                      <td className="py-3.5 px-4">
-                        <p className="font-bold">{apt.doctorName}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{apt.specialty.split(' ')[0]}</p>
+                      <td className="py-3.5 px-4 text-left">
+                        {apt.doctorId === 'pending' ? (
+                          <div className="flex flex-col gap-1 max-w-[150px]">
+                            <span className="text-[9px] text-amber-500 font-extrabold uppercase">⚠️ Assign Doctor</span>
+                            <select
+                              onChange={(e) => assignDoctorToAppointment(apt.id, e.target.value)}
+                              className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:outline-none"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Choose...</option>
+                              {doctors.map((d: any) => (
+                                <option key={d.uid} value={d.uid}>{d.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1 max-w-[150px]">
+                            <p className="font-bold">{apt.doctorName}</p>
+                            <p className="text-[10px] text-slate-400">{apt.specialty.split(' ')[0]}</p>
+                            {apt.status !== 'completed' && (
+                              <select
+                                onChange={(e) => assignDoctorToAppointment(apt.id, e.target.value)}
+                                className="bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-750 px-1 py-0.5 rounded text-[9px] text-slate-500 focus:outline-none font-bold"
+                                value={apt.doctorId}
+                              >
+                                {doctors.map((d: any) => (
+                                  <option key={d.uid} value={d.uid}>{d.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-4">
                         <p className="font-bold">{apt.date}</p>
@@ -832,8 +862,9 @@ export default function AdminPanel() {
                               </button>
                               <button
                                 onClick={() => updateAppointmentStatus(apt.id, 'approved')}
-                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-500 rounded"
-                                title="Approve Appointment"
+                                disabled={apt.doctorId === 'pending'}
+                                className={`p-1 rounded ${apt.doctorId === 'pending' ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-500'}`}
+                                title={apt.doctorId === 'pending' ? 'Assign doctor first' : 'Approve Appointment'}
                               >
                                 <Check className="h-4 w-4" />
                               </button>
@@ -850,7 +881,20 @@ export default function AdminPanel() {
                             </button>
                           )}
                           {apt.status === 'completed' && (
-                            <span className="text-[10px] text-slate-400 font-bold">Record Archived</span>
+                            <div className="flex items-center gap-1.5 justify-end">
+                              {!apt.prescriptionReleased ? (
+                                <button
+                                  onClick={() => updateAppointmentStatus(apt.id, 'completed', undefined, undefined, { prescriptionReleased: true })}
+                                  className="py-1 px-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-750 text-white rounded text-[9px] font-bold flex items-center gap-1 transition-all shadow"
+                                  title="Release prescription to patient"
+                                >
+                                  🔓 Release Rx
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-emerald-500 font-extrabold">✓ Rx Released</span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-bold">Archived</span>
+                            </div>
                           )}
                         </div>
                       </td>

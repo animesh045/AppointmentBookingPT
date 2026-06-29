@@ -60,6 +60,15 @@ export interface Appointment {
   meetingLink?: string;
   notes?: string;
   prescriptionPdfUrl?: string; // base64 or file URL
+  prescriptionReleased?: boolean;
+  prescriptionMedicines?: Array<{
+    name: string;
+    qtyValue: string;
+    qtyUnit: string;
+    frequency: string;
+    foodTiming: string;
+    mealTiming?: string;
+  }>;
   createdAt: string;
 }
 
@@ -155,7 +164,8 @@ interface AppContextType {
   // Appointment Actions
   appointments: Appointment[];
   bookAppointment: (appointment: Omit<Appointment, 'id' | 'patientId' | 'patientName' | 'patientMobile' | 'status' | 'paymentStatus' | 'createdAt'>) => Promise<Appointment>;
-  updateAppointmentStatus: (id: string, status: Appointment['status'], notes?: string, meetingLink?: string) => void;
+  updateAppointmentStatus: (id: string, status: Appointment['status'], notes?: string, meetingLink?: string, additionalFields?: Partial<Appointment>) => void;
+  assignDoctorToAppointment: (appointmentId: string, doctorUid: string) => Promise<void>;
   payConsultationFee: (id: string, method: string) => Promise<boolean>;
 
   // Pharmacy & Order Management
@@ -794,6 +804,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // Synchronize localStorage updates across tabs/windows or manual triggers in same window
+  useEffect(() => {
+    const handleStorage = (e: any) => {
+      const localUsers = localStorage.getItem('ananya_users');
+      if (localUsers) setUsers(JSON.parse(localUsers));
+      const localDoctors = localStorage.getItem('ananya_doctors');
+      if (localDoctors) setDoctors(JSON.parse(localDoctors));
+      const localMedicines = localStorage.getItem('ananya_medicines');
+      if (localMedicines) setMedicines(JSON.parse(localMedicines));
+      const localAppointments = localStorage.getItem('ananya_appointments');
+      if (localAppointments) setAppointments(JSON.parse(localAppointments));
+      const localOrders = localStorage.getItem('ananya_orders');
+      if (localOrders) setOrders(JSON.parse(localOrders));
+      const localChats = localStorage.getItem('ananya_chats');
+      if (localChats) setChatMessages(JSON.parse(localChats));
+      const localNotifications = localStorage.getItem('ananya_notifications');
+      if (localNotifications) setNotifications(JSON.parse(localNotifications));
+      const localLogs = localStorage.getItem('ananya_logs');
+      if (localLogs) setAuditLogs(JSON.parse(localLogs));
+      const activeSession = localStorage.getItem('ananya_session');
+      if (activeSession) setUser(JSON.parse(activeSession));
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('local-storage-update', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('local-storage-update', handleStorage);
+    };
+  }, []);
+
   // Register FCM Token for logged-in user
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
@@ -1065,12 +1106,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetUser = users.find(u => u.uid === uid);
     if (targetUser) {
       const revisedUser = { ...targetUser, status: 'suspended' as const };
-      const dbSaved = await syncDoc('users', uid, revisedUser);
-      if (!dbSaved) {
-        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
-        setUsers(updated);
-        syncStorage('ananya_users', updated);
-      }
+      const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+      setUsers(updated);
+      syncStorage('ananya_users', updated);
+      window.dispatchEvent(new Event('local-storage-update'));
+      await syncDoc('users', uid, revisedUser);
     }
     createLog('Suspend User', `Suspended user UID: ${uid}`);
     addNotification(uid, 'Account Suspended', 'Your account has been suspended by the administrator.');
@@ -1080,24 +1120,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetUser = users.find(u => u.uid === uid);
     if (targetUser) {
       const revisedUser = { ...targetUser, status: 'active' as const };
-      const dbSaved = await syncDoc('users', uid, revisedUser);
-      if (!dbSaved) {
-        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
-        setUsers(updated);
-        syncStorage('ananya_users', updated);
-      }
+      const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+      setUsers(updated);
+      syncStorage('ananya_users', updated);
+      window.dispatchEvent(new Event('local-storage-update'));
+      await syncDoc('users', uid, revisedUser);
     }
     createLog('Activate User', `Activated user UID: ${uid}`);
     addNotification(uid, 'Account Restored', 'Your account has been reactivated. You can now login.');
   };
 
   const deleteUser = async (uid: string) => {
-    const dbDeleted = await deleteDocHelper('users', uid);
-    if (!dbDeleted) {
-      const updated = users.filter((u) => u.uid !== uid);
-      setUsers(updated);
-      syncStorage('ananya_users', updated);
-    }
+    const updated = users.filter((u) => u.uid !== uid);
+    setUsers(updated);
+    syncStorage('ananya_users', updated);
+    window.dispatchEvent(new Event('local-storage-update'));
+    await deleteDocHelper('users', uid);
     createLog('Delete User', `Deleted user account UID: ${uid}`);
   };
 
@@ -1105,48 +1143,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetUser = users.find(u => u.uid === uid);
     if (targetUser) {
       const revisedUser = { ...targetUser, role };
-      const dbSaved = await syncDoc('users', uid, revisedUser);
-      if (!dbSaved) {
-        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
-        setUsers(updated);
-        syncStorage('ananya_users', updated);
+      
+      const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+      setUsers(updated);
+      syncStorage('ananya_users', updated);
+      window.dispatchEvent(new Event('local-storage-update'));
+
+      await syncDoc('users', uid, revisedUser);
+
+      // If role is updated to doctor, ensure they have a DoctorProfile
+      if (role === 'doctor') {
+        const docExists = doctors.some((d) => d.uid === uid);
+        if (!docExists) {
+          const matchingUser = updated.find((u) => u.uid === uid);
+          const newDoc: DoctorProfile = {
+            uid: uid,
+            name: matchingUser ? matchingUser.name : 'Dr. Practitioner',
+            specialty: 'General Medicine',
+            fees: 500,
+            availability: {
+              days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+              slots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM']
+            },
+            profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
+            rating: 5.0
+          };
+          
+          await syncDoc('doctors', uid, newDoc);
+          
+          const updatedDoctors = [...doctors, newDoc];
+          setDoctors(updatedDoctors);
+          syncStorage('ananya_doctors', updatedDoctors);
+        }
+      }
+
+      // If changing role of current logged in user
+      if (user && user.uid === uid) {
+        const updatedSelf = { ...user, role };
+        setUser(updatedSelf);
+        syncStorage('ananya_session', updatedSelf);
       }
     }
     createLog('Change User Role', `Assigned role ${role} to UID: ${uid}`);
     addNotification(uid, 'Role Level Updated', `Your system privileges changed. New Role: ${role.toUpperCase()}`);
-
-    // If role is updated to doctor, ensure they have a DoctorProfile
-    if (role === 'doctor') {
-      const docExists = doctors.some((d) => d.uid === uid);
-      if (!docExists) {
-        const matchingUser = users.find((u) => u.uid === uid);
-        const newDoc: DoctorProfile = {
-          uid: uid,
-          name: matchingUser ? matchingUser.name : 'Dr. Practitioner',
-          specialty: 'General Medicine',
-          fees: 500,
-          availability: {
-            days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-            slots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM']
-          },
-          profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-          rating: 5.0
-        };
-        
-        syncDoc('doctors', uid, newDoc);
-        
-        const updatedDoctors = [...doctors, newDoc];
-        setDoctors(updatedDoctors);
-        syncStorage('ananya_doctors', updatedDoctors);
-      }
-    }
-
-    // If changing role of current logged in user
-    if (user && user.uid === uid) {
-      const updatedSelf = { ...user, role };
-      setUser(updatedSelf);
-      syncStorage('ananya_session', updatedSelf);
-    }
   };
 
   // Doctors
@@ -1250,10 +1289,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newApt;
   };
 
-  const updateAppointmentStatus = async (id: string, status: Appointment['status'], notes?: string, meetingLink?: string) => {
+  const updateAppointmentStatus = async (
+    id: string,
+    status: Appointment['status'],
+    notes?: string,
+    meetingLink?: string,
+    additionalFields?: Partial<Appointment>
+  ) => {
     const revisedApts = appointments.map((apt) => {
       if (apt.id === id) {
-        const revised = { ...apt, status };
+        const revised = { ...apt, status, ...additionalFields };
         if (notes !== undefined) revised.notes = notes;
         if (meetingLink !== undefined) revised.meetingLink = meetingLink;
         
@@ -1261,14 +1306,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Push notification alerts to patient & doctor
         if (status === 'approved') {
-          addNotification(apt.patientId, 'Appointment APPROVED', `Your appointment with ${apt.doctorName} on ${apt.date} is approved!`);
-          addNotification(apt.doctorId, 'Appointment APPROVED', `Patient ${apt.patientName}'s appointment on ${apt.date} at ${apt.timeSlot} is approved!`);
+          addNotification(apt.patientId, 'Appointment APPROVED', `Your appointment with ${revised.doctorName} on ${apt.date} is approved!`);
+          if (revised.doctorId !== 'pending') {
+            addNotification(revised.doctorId, 'Appointment APPROVED', `Patient ${apt.patientName}'s appointment on ${apt.date} at ${apt.timeSlot} is approved!`);
+          }
           if (meetingLink) {
             addNotification(apt.patientId, 'Meeting Link Assigned', `Consultation video room is active. Join: ${meetingLink}`);
-            addNotification(apt.doctorId, 'Meeting Link Assigned', `Consultation video room is active. Join: ${meetingLink}`);
+            if (revised.doctorId !== 'pending') {
+              addNotification(revised.doctorId, 'Meeting Link Assigned', `Consultation video room is active. Join: ${meetingLink}`);
+            }
           }
         } else if (status === 'rejected') {
-          addNotification(apt.patientId, 'Appointment REJECTED', `Your request with ${apt.doctorName} was rejected or needs rescheduling.`);
+          addNotification(apt.patientId, 'Appointment REJECTED', `Your request with ${revised.doctorName} was rejected or needs rescheduling.`);
         } else if (status === 'completed') {
           addNotification(apt.patientId, 'Consultation Completed', `Prescription and reports are now ready for download!`);
         }
@@ -1278,11 +1327,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return apt;
     });
 
-    if (!hasFirebaseCredentials() || !db) {
-      setAppointments(revisedApts);
-      syncStorage('ananya_appointments', revisedApts);
-    }
+    setAppointments(revisedApts);
+    syncStorage('ananya_appointments', revisedApts);
+    window.dispatchEvent(new Event('local-storage-update'));
+    
     createLog('Update Appointment', `Appointment ${id} status updated to: ${status}`);
+  };
+
+  const assignDoctorToAppointment = async (appointmentId: string, doctorUid: string) => {
+    const doctor = doctors.find(d => d.uid === doctorUid);
+    if (!doctor) return;
+
+    const revisedApts = appointments.map((apt) => {
+      if (apt.id === appointmentId) {
+        const revised = {
+          ...apt,
+          doctorId: doctor.uid,
+          doctorName: doctor.name,
+          specialty: doctor.specialty,
+          fees: doctor.fees
+        };
+        syncDoc('appointments', appointmentId, revised);
+        
+        // Notify patient
+        addNotification(apt.patientId, 'Clinician Assigned', `Dr. ${doctor.name} has been assigned to your consultation on ${apt.date}.`);
+        
+        return revised;
+      }
+      return apt;
+    });
+
+    setAppointments(revisedApts);
+    syncStorage('ananya_appointments', revisedApts);
+    window.dispatchEvent(new Event('local-storage-update'));
+    
+    createLog('Assign Doctor', `Assigned Dr. ${doctor.name} to Appointment ID: ${appointmentId}`);
   };
 
   const payConsultationFee = async (id: string, method: string): Promise<boolean> => {
@@ -1475,12 +1554,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
 
-    const dbSaved = await syncDoc('chatMessages', newMsg.id, newMsg);
-    if (!dbSaved) {
-      const updated = [...chatMessages, newMsg];
-      setChatMessages(updated);
-      syncStorage('ananya_chats', updated);
-    }
+    const updated = [...chatMessages, newMsg];
+    setChatMessages(updated);
+    syncStorage('ananya_chats', updated);
+    window.dispatchEvent(new Event('local-storage-update'));
+
+    await syncDoc('chatMessages', newMsg.id, newMsg);
 
     // Alert receiver depending on sender role
     const apt = appointments.find((a) => a.id === appointmentId);
@@ -1610,6 +1689,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         appointments,
         bookAppointment,
         updateAppointmentStatus,
+        assignDoctorToAppointment,
         payConsultationFee,
         medicines,
         addMedicine,
