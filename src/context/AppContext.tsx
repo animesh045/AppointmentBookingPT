@@ -838,6 +838,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearTimeout(timer);
   }, [user]);
 
+  // Listen to foreground FCM messages
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+
+    let unsub: (() => void) | undefined;
+
+    const listenForeground = async () => {
+      try {
+        const { messaging, hasFirebaseCredentials } = await import('./FirebaseConfig');
+        if (!hasFirebaseCredentials() || !messaging) return;
+
+        const { onMessage } = await import('firebase/messaging');
+        unsub = onMessage(messaging, (payload) => {
+          console.log('[FCM] Foreground message received:', payload);
+          if (Notification.permission === 'granted') {
+            new Notification(payload.notification?.title || 'Ananya Enterprises', {
+              body: payload.notification?.body || '',
+              icon: '/favicon.ico'
+            });
+          }
+        });
+      } catch (err) {
+        console.error('[FCM] Foreground listener registration failed:', err);
+      }
+    };
+
+    listenForeground();
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [user]);
+
   // Helper helper to write states to local storage
   const syncStorage = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
