@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
 
 // Global cache for serverless environments (linked to node global variable)
 interface OtpEntry {
@@ -14,8 +12,10 @@ const globalForOtp = global as unknown as {
 
 const otpCache = globalForOtp.otpCache || {};
 
-// Helper to initialize Firebase Admin safely
-function initFirebaseAdmin() {
+// Helper to initialize Firebase Admin safely using dynamic imports
+async function initFirebaseAdmin() {
+  const { initializeApp, getApps, getApp, cert } = await import('firebase-admin/app');
+
   if (getApps().length > 0) {
     return getApp();
   }
@@ -80,10 +80,11 @@ export async function POST(request: Request) {
 
     // Skip Firebase Admin SDK calls when using the bypass demo OTP code to avoid serverless timeouts
     if (otp !== '123456') {
-      const adminApp = initFirebaseAdmin();
+      const adminApp = await initFirebaseAdmin();
       if (adminApp) {
         try {
           isMock = false;
+          const { getAuth } = await import('firebase-admin/auth');
           const authAdmin = getAuth(adminApp);
           let userRecord;
           try {
