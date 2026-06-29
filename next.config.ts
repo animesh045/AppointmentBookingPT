@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   typescript: {
     ignoreBuildErrors: false,
+  },
+  turbopack: {
+    root: process.cwd(),
   }
 };
 

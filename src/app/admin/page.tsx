@@ -219,7 +219,7 @@ export default function AdminPanel() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 transition-colors">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-950 transition-colors">
       <Navbar onOpenCart={() => setCartOpen(true)} />
       <CartDrawer isOpen={cartOpen} onClose={() => setCartOpen(false)} />
 

@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# firebase credentials
+public/appoint-*-firebase-adminsdk-*.json
+
+# patient assets
+public/Prescription_*.pdf

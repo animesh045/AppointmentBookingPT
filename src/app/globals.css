@@ -1,55 +1,54 @@
 @import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --background: 222.2 84% 4.9%; /* Deep Slate Black */
-  --foreground: 210 40% 98%;
+  --background: 0 0% 100%; /* Pure White */
+  --foreground: 222.2 47.4% 11.2%; /* Slate 950 */
   
-  --card: 222.2 84% 7%;
-  --card-foreground: 210 40% 98%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
   
-  --primary: 173 80% 45%; /* Glowing Teal */
-  --primary-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%; /* Blue */
+  --primary-foreground: 210 40% 98%;
   
-  --secondary: 200 95% 45%; /* Ocean Sky */
+  --secondary: 142.1 76.2% 36.3%; /* Green */
   --secondary-foreground: 210 40% 98%;
   
-  --accent: 152 76% 45%; /* Neon Mint */
-  --accent-foreground: 222.2 84% 4.9%;
+  --accent: 24.6 95% 53.1%; /* Orange */
+  --accent-foreground: 222.2 47.4% 11.2%;
 
-  --muted: 217.2 32.6% 12%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 210 40% 96.1%; /* Slate 100 */
+  --muted-foreground: 215.4 16.3% 46.9%; /* Slate 500 */
   
-  --border: 217.2 32.6% 17.5%;
+  --border: 214.3 31.8% 91.4%; /* Slate 200 */
   --radius: 1rem;
 }
 
 .dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
   
-  --card: 222.2 84% 7%;
-  --card-foreground: 210 40% 98%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
   
-  --primary: 173 80% 45%;
-  --primary-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
   
-  --secondary: 200 95% 45%;
+  --secondary: 142.1 76.2% 36.3%;
   --secondary-foreground: 210 40% 98%;
   
-  --accent: 152 76% 45%;
-  --accent-foreground: 222.2 84% 4.9%;
+  --accent: 24.6 95% 53.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
 
-  --muted: 217.2 32.6% 12%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
   
-  --border: 217.2 32.6% 17.5%;
+  --border: 214.3 31.8% 91.4%;
 }
 
 * {
   border-color: hsl(var(--border));
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-plus-jakarta-sans), sans-serif;
   transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
               border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -62,16 +61,16 @@ body {
 
 /* Custom Premium Utilities */
 .glass {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .glass-card {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(51, 65, 85, 0.4);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
 }
 
 /* Soft Animations */
@@ -130,3 +129,24 @@ body {
     background-position: 200% 0;
   }
 }
+
+/* Infinite Marquee Animation styles */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+
+.marquee-container:hover .animate-marquee {
+  animation-play-state: paused;
+}
+

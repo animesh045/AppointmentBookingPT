@@ -1,6 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db, hasFirebaseCredentials } from './FirebaseConfig';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc as firestoreDeleteDoc,
+  onSnapshot 
+} from 'firebase/firestore';
 
 // ==========================================
 // INTERFACES & SCHEMAS
@@ -18,6 +26,7 @@ export interface UserProfile {
   role: 'consumer' | 'doctor' | 'admin';
   status: 'active' | 'suspended';
   createdAt: string;
+  fcmTokens?: string[];
 }
 
 export interface DoctorProfile {
@@ -129,9 +138,10 @@ interface AppContextType {
   users: UserProfile[];
   doctors: DoctorProfile[];
   login: (mobile: string, passcode: string) => Promise<boolean>;
+  loginViaOtp: (mobile: string) => Promise<boolean>;
   logout: () => void;
   updateProfile: (profile: Partial<UserProfile>) => void;
-  registerUser: (profile: Omit<UserProfile, 'uid' | 'role' | 'status' | 'createdAt'>) => Promise<void>;
+  registerUser: (profile: Omit<UserProfile, 'uid' | 'role' | 'status' | 'createdAt'>, customUid?: string) => Promise<void>;
   suspendUser: (uid: string) => void;
   unsuspendUser: (uid: string) => void;
   deleteUser: (uid: string) => void;
@@ -174,6 +184,10 @@ interface AppContextType {
   // Dev Tool Helper
   devLoginAs: (role: 'consumer' | 'doctor' | 'admin') => void;
   auditLogs: AuditLog[];
+
+  // Language support
+  language: 'en' | 'hi';
+  setLanguage: (lang: 'en' | 'hi') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -334,177 +348,430 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Local Session
   const [user, setUser] = useState<UserProfile | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [language, setLanguageState] = useState<'en' | 'hi'>('en');
 
-  // Load initial data from LocalStorage or seed defaults
+  // Load language preference from localStorage
   useEffect(() => {
-    const localUsers = localStorage.getItem('ananya_users');
-    const localDoctors = localStorage.getItem('ananya_doctors');
-    const localMedicines = localStorage.getItem('ananya_medicines');
-    const localAppointments = localStorage.getItem('ananya_appointments');
-    const localOrders = localStorage.getItem('ananya_orders');
-    const localChats = localStorage.getItem('ananya_chats');
-    const localNotifications = localStorage.getItem('ananya_notifications');
-    const localLogs = localStorage.getItem('ananya_logs');
-    const activeSession = localStorage.getItem('ananya_session');
+    if (typeof window !== 'undefined') {
+      const storedLang = localStorage.getItem('ananya_language') as 'en' | 'hi' | null;
+      if (storedLang === 'en' || storedLang === 'hi') {
+        setLanguageState(storedLang);
+      }
+    }
+  }, []);
 
-    // Seeding users
-    if (localUsers) {
-      const parsed = JSON.parse(localUsers);
-      const adminIndex = parsed.findIndex((u: any) => u.mobile === '8368825928');
-      if (adminIndex === -1) {
-        const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-        if (defaultAdmin) {
-          parsed.push(defaultAdmin);
+  const setLanguage = (lang: 'en' | 'hi') => {
+    setLanguageState(lang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ananya_language', lang);
+    }
+  };
+
+  // Helper to sync doc to Firestore
+  const syncDoc = async (collectionName: string, id: string, data: any) => {
+    if (hasFirebaseCredentials() && db) {
+      try {
+        await setDoc(doc(db, collectionName, id), data);
+        return true;
+      } catch (err) {
+        console.error(`Firestore syncDoc error for ${collectionName}/${id}:`, err);
+      }
+    }
+    return false;
+  };
+
+  // Helper to delete doc from Firestore
+  const deleteDocHelper = async (collectionName: string, id: string) => {
+    if (hasFirebaseCredentials() && db) {
+      try {
+        await firestoreDeleteDoc(doc(db, collectionName, id));
+        return true;
+      } catch (err) {
+        console.error(`Firestore deleteDoc error for ${collectionName}/${id}:`, err);
+      }
+    }
+    return false;
+  };
+
+  // Load initial data from LocalStorage or seed defaults / Listen to Firestore
+  useEffect(() => {
+    if (hasFirebaseCredentials() && db) {
+      // 1. Listen to users
+      const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as UserProfile);
+        if (docs.length === 0) {
+          DEFAULT_USERS.forEach(async (u) => {
+            await setDoc(doc(db, 'users', u.uid), u);
+          });
+        } else {
+          // Check if admin is in the database and has correct role/passcode
+          const adminIdx = docs.findIndex((u) => u.mobile === '8368825928');
+          if (adminIdx === -1) {
+            const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
+            if (defaultAdmin) {
+              setDoc(doc(db, 'users', defaultAdmin.uid), defaultAdmin);
+            }
+          } else if (docs[adminIdx].role !== 'admin' || docs[adminIdx].passcode !== '1234') {
+            const revisedAdmin = { ...docs[adminIdx], role: 'admin' as const, passcode: '1234' };
+            setDoc(doc(db, 'users', revisedAdmin.uid), revisedAdmin);
+          }
+          setUsers(docs);
+        }
+      });
+
+      // 2. Listen to doctors
+      const unsubDoctors = onSnapshot(collection(db, 'doctors'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as DoctorProfile);
+        if (docs.length === 0) {
+          DEFAULT_DOCTORS.forEach(async (d) => {
+            await setDoc(doc(db, 'doctors', d.uid), d);
+          });
+        } else {
+          setDoctors(docs);
+        }
+      });
+
+      // 3. Listen to medicines
+      const unsubMedicines = onSnapshot(collection(db, 'medicines'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as Medicine);
+        if (docs.length === 0) {
+          DEFAULT_MEDICINES.forEach(async (m) => {
+            await setDoc(doc(db, 'medicines', m.id), m);
+          });
+        } else {
+          setMedicines(docs);
+        }
+      });
+
+      // 4. Listen to appointments
+      const unsubAppointments = onSnapshot(collection(db, 'appointments'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as Appointment);
+        if (docs.length === 0) {
+          const initialAppointments: Appointment[] = [
+            {
+              id: 'apt_1001',
+              patientId: 'consumer_demo',
+              patientName: 'Rahul Sharma',
+              patientMobile: '7777777777',
+              doctorId: 'doc_ananya',
+              doctorName: 'Dr. Ananya Sharma',
+              specialty: 'Cardiologist & General Medicine',
+              date: new Date().toISOString().split('T')[0],
+              timeSlot: '10:00 AM',
+              reason: 'Routine cardiac health review and prescription renewal.',
+              fees: 600,
+              status: 'approved',
+              paymentStatus: 'paid',
+              paymentId: 'pay_mock_12345',
+              meetingLink: 'https://meet.google.com/abc-defg-hij',
+              notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
+              createdAt: new Date(Date.now() - 86400000).toISOString()
+            }
+          ];
+          initialAppointments.forEach(async (apt) => {
+            await setDoc(doc(db, 'appointments', apt.id), apt);
+          });
+        } else {
+          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setAppointments(docs);
+        }
+      });
+
+      // 5. Listen to orders
+      const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as Order);
+        if (docs.length === 0) {
+          const initialOrders: Order[] = [
+            {
+              id: 'ord_2001',
+              patientId: 'consumer_demo',
+              patientName: 'Rahul Sharma',
+              patientMobile: '7777777777',
+              items: [
+                { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
+                { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
+              ],
+              totalAmount: 240,
+              paymentStatus: 'paid',
+              status: 'delivered',
+              paymentId: 'pay_mock_99887',
+              deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
+              fastBooking: false,
+              createdAt: new Date(Date.now() - 172800000).toISOString()
+            }
+          ];
+          initialOrders.forEach(async (ord) => {
+            await setDoc(doc(db, 'orders', ord.id), ord);
+          });
+        } else {
+          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setOrders(docs);
+        }
+      });
+
+      // 6. Listen to chatMessages
+      const unsubChats = onSnapshot(collection(db, 'chatMessages'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as ChatMessage);
+        if (docs.length === 0) {
+          const initialChats: ChatMessage[] = [
+            {
+              id: 'msg_1',
+              appointmentId: 'apt_1001',
+              senderId: 'doc_ananya',
+              senderName: 'Dr. Ananya Sharma',
+              text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
+              timestamp: new Date(Date.now() - 3600000).toISOString()
+            },
+            {
+              id: 'msg_2',
+              appointmentId: 'apt_1001',
+              senderId: 'consumer_demo',
+              senderName: 'Rahul Sharma',
+              text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
+              timestamp: new Date(Date.now() - 3400000).toISOString()
+            }
+          ];
+          initialChats.forEach(async (c) => {
+            await setDoc(doc(db, 'chatMessages', c.id), c);
+          });
+        } else {
+          docs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          setChatMessages(docs);
+        }
+      });
+
+      // 7. Listen to notifications
+      const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as Notification);
+        if (docs.length === 0) {
+          const initialNotifs: Notification[] = [
+            {
+              id: 'notif_1',
+              userId: 'consumer_demo',
+              title: 'Appointment Approved',
+              body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
+              read: false,
+              createdAt: new Date().toISOString()
+            }
+          ];
+          initialNotifs.forEach(async (n) => {
+            await setDoc(doc(db, 'notifications', n.id), n);
+          });
+        } else {
+          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setNotifications(docs);
+        }
+      });
+
+      // 8. Listen to auditLogs
+      const unsubLogs = onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => doc.data() as AuditLog);
+        if (docs.length === 0) {
+          const initialLogs: AuditLog[] = [
+            {
+              id: 'log_1',
+              userId: 'admin_1',
+              userName: 'Animesh Gupta (Admin)',
+              action: 'System Initialization',
+              details: 'Ananya Enterprises portal configured and pre-seeded.',
+              timestamp: new Date().toISOString()
+            }
+          ];
+          initialLogs.forEach(async (l) => {
+            await setDoc(doc(db, 'auditLogs', l.id), l);
+          });
+        } else {
+          docs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          setAuditLogs(docs);
+        }
+      });
+
+      // Load session local
+      const activeSession = localStorage.getItem('ananya_session');
+      if (activeSession) {
+        setUser(JSON.parse(activeSession));
+      }
+
+      return () => {
+        unsubUsers();
+        unsubDoctors();
+        unsubMedicines();
+        unsubAppointments();
+        unsubOrders();
+        unsubChats();
+        unsubNotifications();
+        unsubLogs();
+      };
+    } else {
+      // Offline/unconfigured fallback
+      const localUsers = localStorage.getItem('ananya_users');
+      const localDoctors = localStorage.getItem('ananya_doctors');
+      const localMedicines = localStorage.getItem('ananya_medicines');
+      const localAppointments = localStorage.getItem('ananya_appointments');
+      const localOrders = localStorage.getItem('ananya_orders');
+      const localChats = localStorage.getItem('ananya_chats');
+      const localNotifications = localStorage.getItem('ananya_notifications');
+      const localLogs = localStorage.getItem('ananya_logs');
+      const activeSession = localStorage.getItem('ananya_session');
+
+      // Seeding users local
+      if (localUsers) {
+        const parsed = JSON.parse(localUsers);
+        const adminIndex = parsed.findIndex((u: any) => u.mobile === '8368825928');
+        if (adminIndex === -1) {
+          const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
+          if (defaultAdmin) {
+            parsed.push(defaultAdmin);
+            localStorage.setItem('ananya_users', JSON.stringify(parsed));
+          }
+        } else if (parsed[adminIndex].role !== 'admin' || parsed[adminIndex].passcode !== '1234') {
+          parsed[adminIndex].role = 'admin';
+          parsed[adminIndex].passcode = '1234';
           localStorage.setItem('ananya_users', JSON.stringify(parsed));
         }
-      } else if (parsed[adminIndex].role !== 'admin' || parsed[adminIndex].passcode !== '1234') {
-        parsed[adminIndex].role = 'admin';
-        parsed[adminIndex].passcode = '1234';
-        localStorage.setItem('ananya_users', JSON.stringify(parsed));
+        setUsers(parsed);
+      } else {
+        localStorage.setItem('ananya_users', JSON.stringify(DEFAULT_USERS));
+        setUsers(DEFAULT_USERS);
       }
-      setUsers(parsed);
-    } else {
-      localStorage.setItem('ananya_users', JSON.stringify(DEFAULT_USERS));
-      setUsers(DEFAULT_USERS);
-    }
 
-    // Seeding doctors
-    if (localDoctors) {
-      setDoctors(JSON.parse(localDoctors));
-    } else {
-      localStorage.setItem('ananya_doctors', JSON.stringify(DEFAULT_DOCTORS));
-      setDoctors(DEFAULT_DOCTORS);
-    }
+      // Seeding doctors local
+      if (localDoctors) {
+        setDoctors(JSON.parse(localDoctors));
+      } else {
+        localStorage.setItem('ananya_doctors', JSON.stringify(DEFAULT_DOCTORS));
+        setDoctors(DEFAULT_DOCTORS);
+      }
 
-    // Seeding medicines
-    if (localMedicines) {
-      setMedicines(JSON.parse(localMedicines));
-    } else {
-      localStorage.setItem('ananya_medicines', JSON.stringify(DEFAULT_MEDICINES));
-      setMedicines(DEFAULT_MEDICINES);
-    }
+      // Seeding medicines local
+      if (localMedicines) {
+        setMedicines(JSON.parse(localMedicines));
+      } else {
+        localStorage.setItem('ananya_medicines', JSON.stringify(DEFAULT_MEDICINES));
+        setMedicines(DEFAULT_MEDICINES);
+      }
 
-    // Seeding appointments
-    if (localAppointments) {
-      setAppointments(JSON.parse(localAppointments));
-    } else {
-      const initialAppointments: Appointment[] = [
-        {
-          id: 'apt_1001',
-          patientId: 'consumer_demo',
-          patientName: 'Rahul Sharma',
-          patientMobile: '7777777777',
-          doctorId: 'doc_ananya',
-          doctorName: 'Dr. Ananya Sharma',
-          specialty: 'Cardiologist & General Medicine',
-          date: new Date().toISOString().split('T')[0],
-          timeSlot: '10:00 AM',
-          reason: 'Routine cardiac health review and prescription renewal.',
-          fees: 600,
-          status: 'approved',
-          paymentStatus: 'paid',
-          paymentId: 'pay_mock_12345',
-          meetingLink: 'https://meet.google.com/abc-defg-hij',
-          notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
-          createdAt: new Date(Date.now() - 86400000).toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_appointments', JSON.stringify(initialAppointments));
-      setAppointments(initialAppointments);
-    }
+      // Seeding appointments local
+      if (localAppointments) {
+        setAppointments(JSON.parse(localAppointments));
+      } else {
+        const initialAppointments: Appointment[] = [
+          {
+            id: 'apt_1001',
+            patientId: 'consumer_demo',
+            patientName: 'Rahul Sharma',
+            patientMobile: '7777777777',
+            doctorId: 'doc_ananya',
+            doctorName: 'Dr. Ananya Sharma',
+            specialty: 'Cardiologist & General Medicine',
+            date: new Date().toISOString().split('T')[0],
+            timeSlot: '10:00 AM',
+            reason: 'Routine cardiac health review and prescription renewal.',
+            fees: 600,
+            status: 'approved',
+            paymentStatus: 'paid',
+            paymentId: 'pay_mock_12345',
+            meetingLink: 'https://meet.google.com/abc-defg-hij',
+            notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
+            createdAt: new Date(Date.now() - 86400000).toISOString()
+          }
+        ];
+        localStorage.setItem('ananya_appointments', JSON.stringify(initialAppointments));
+        setAppointments(initialAppointments);
+      }
 
-    // Seeding orders
-    if (localOrders) {
-      setOrders(JSON.parse(localOrders));
-    } else {
-      const initialOrders: Order[] = [
-        {
-          id: 'ord_2001',
-          patientId: 'consumer_demo',
-          patientName: 'Rahul Sharma',
-          patientMobile: '7777777777',
-          items: [
-            { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
-            { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
-          ],
-          totalAmount: 240,
-          paymentStatus: 'paid',
-          status: 'delivered',
-          paymentId: 'pay_mock_99887',
-          deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
-          fastBooking: false,
-          createdAt: new Date(Date.now() - 172800000).toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_orders', JSON.stringify(initialOrders));
-      setOrders(initialOrders);
-    }
+      // Seeding orders local
+      if (localOrders) {
+        setOrders(JSON.parse(localOrders));
+      } else {
+        const initialOrders: Order[] = [
+          {
+            id: 'ord_2001',
+            patientId: 'consumer_demo',
+            patientName: 'Rahul Sharma',
+            patientMobile: '7777777777',
+            items: [
+              { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
+              { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
+            ],
+            totalAmount: 240,
+            paymentStatus: 'paid',
+            status: 'delivered',
+            paymentId: 'pay_mock_99887',
+            deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
+            fastBooking: false,
+            createdAt: new Date(Date.now() - 172800000).toISOString()
+          }
+        ];
+        localStorage.setItem('ananya_orders', JSON.stringify(initialOrders));
+        setOrders(initialOrders);
+      }
 
-    // Seeding chats
-    if (localChats) {
-      setChatMessages(JSON.parse(localChats));
-    } else {
-      const initialChats: ChatMessage[] = [
-        {
-          id: 'msg_1',
-          appointmentId: 'apt_1001',
-          senderId: 'doc_ananya',
-          senderName: 'Dr. Ananya Sharma',
-          text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
-          timestamp: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: 'msg_2',
-          appointmentId: 'apt_1001',
-          senderId: 'consumer_demo',
-          senderName: 'Rahul Sharma',
-          text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
-          timestamp: new Date(Date.now() - 3400000).toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_chats', JSON.stringify(initialChats));
-      setChatMessages(initialChats);
-    }
+      // Seeding chats local
+      if (localChats) {
+        setChatMessages(JSON.parse(localChats));
+      } else {
+        const initialChats: ChatMessage[] = [
+          {
+            id: 'msg_1',
+            appointmentId: 'apt_1001',
+            senderId: 'doc_ananya',
+            senderName: 'Dr. Ananya Sharma',
+            text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
+            timestamp: new Date(Date.now() - 3600000).toISOString()
+          },
+          {
+            id: 'msg_2',
+            appointmentId: 'apt_1001',
+            senderId: 'consumer_demo',
+            senderName: 'Rahul Sharma',
+            text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
+            timestamp: new Date(Date.now() - 3400000).toISOString()
+          }
+        ];
+        localStorage.setItem('ananya_chats', JSON.stringify(initialChats));
+        setChatMessages(initialChats);
+      }
 
-    // Seeding Notifications
-    if (localNotifications) {
-      setNotifications(JSON.parse(localNotifications));
-    } else {
-      const initialNotifs: Notification[] = [
-        {
-          id: 'notif_1',
-          userId: 'consumer_demo',
-          title: 'Appointment Approved',
-          body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
-          read: false,
-          createdAt: new Date().toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_notifications', JSON.stringify(initialNotifs));
-      setNotifications(initialNotifs);
-    }
+      // Seeding Notifications local
+      if (localNotifications) {
+        setNotifications(JSON.parse(localNotifications));
+      } else {
+        const initialNotifs: Notification[] = [
+          {
+            id: 'notif_1',
+            userId: 'consumer_demo',
+            title: 'Appointment Approved',
+            body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
+            read: false,
+            createdAt: new Date().toISOString()
+          }
+        ];
+        localStorage.setItem('ananya_notifications', JSON.stringify(initialNotifs));
+        setNotifications(initialNotifs);
+      }
 
-    // Seeding Logs
-    if (localLogs) {
-      setAuditLogs(JSON.parse(localLogs));
-    } else {
-      const initialLogs: AuditLog[] = [
-        {
-          id: 'log_1',
-          userId: 'admin_1',
-          userName: 'Animesh Gupta (Admin)',
-          action: 'System Initialization',
-          details: 'Ananya Enterprises portal configured and pre-seeded.',
-          timestamp: new Date().toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_logs', JSON.stringify(initialLogs));
-      setAuditLogs(initialLogs);
-    }
+      // Seeding Logs local
+      if (localLogs) {
+        setAuditLogs(JSON.parse(localLogs));
+      } else {
+        const initialLogs: AuditLog[] = [
+          {
+            id: 'log_1',
+            userId: 'admin_1',
+            userName: 'Animesh Gupta (Admin)',
+            action: 'System Initialization',
+            details: 'Ananya Enterprises portal configured and pre-seeded.',
+            timestamp: new Date().toISOString()
+          }
+        ];
+        localStorage.setItem('ananya_logs', JSON.stringify(initialLogs));
+        setAuditLogs(initialLogs);
+      }
 
-    // Load active session
-    if (activeSession) {
-      setUser(JSON.parse(activeSession));
+      if (activeSession) {
+        setUser(JSON.parse(activeSession));
+      }
     }
   }, []);
 
@@ -513,7 +780,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(key, JSON.stringify(data));
   };
 
-  const createLog = (action: string, details: string, uid?: string, name?: string) => {
+  const createLog = async (action: string, details: string, uid?: string, name?: string) => {
     const newLog: AuditLog = {
       id: `log_${Date.now()}`,
       userId: uid || user?.uid || 'guest',
@@ -522,15 +789,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       details,
       timestamp: new Date().toISOString()
     };
-    const updated = [newLog, ...auditLogs];
-    setAuditLogs(updated);
-    syncStorage('ananya_logs', updated);
+    const dbSaved = await syncDoc('auditLogs', newLog.id, newLog);
+    if (!dbSaved) {
+      const updated = [newLog, ...auditLogs];
+      setAuditLogs(updated);
+      syncStorage('ananya_logs', updated);
+    }
   };
 
   // ==========================================
   // FUNCTION IMPLEMENTATIONS
   // ==========================================
 
+  // Authentication
   // Authentication
   const login = async (mobile: string, passcode: string): Promise<boolean> => {
     // Load fresh copy of users from localStorage if available to avoid race conditions with React state
@@ -569,6 +840,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           passcode: '1234',
           status: 'active'
         };
+        
+        syncDoc('users', adminUser.uid, adminUser);
+        
         const otherUsers = activeUsers.filter(u => u.mobile !== '8368825928');
         const updatedUsers = [...otherUsers, adminUser];
         setUsers(updatedUsers);
@@ -602,7 +876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  const registerUser = async (profile: Omit<UserProfile, 'uid' | 'role' | 'status' | 'createdAt'>) => {
+  const registerUser = async (profile: Omit<UserProfile, 'uid' | 'role' | 'status' | 'createdAt'>, customUid?: string) => {
     // Load fresh copy of users from localStorage if available to avoid race conditions with React state
     let activeUsers = users;
     if (typeof window !== 'undefined') {
@@ -612,7 +886,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const newUid = `user_${Date.now()}`;
+    const newUid = customUid || `user_${Date.now()}`;
     const newUser: UserProfile = {
       ...profile,
       uid: newUid,
@@ -621,15 +895,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    const updated = [...activeUsers, newUser];
+    const dbSaved = await syncDoc('users', newUser.uid, newUser);
+    
+    // Deduplicate and update state and localStorage
+    const existsIndex = activeUsers.findIndex(u => u.uid === newUser.uid || u.mobile === newUser.mobile);
+    let updated;
+    if (existsIndex > -1) {
+      updated = activeUsers.map((u, i) => i === existsIndex ? newUser : u);
+    } else {
+      updated = [...activeUsers, newUser];
+    }
     setUsers(updated);
-    syncStorage('ananya_users', updated);
+    if (typeof window !== 'undefined') {
+      syncStorage('ananya_users', updated);
+    }
 
     // Auto log-in
     setUser(newUser);
     syncStorage('ananya_session', newUser);
     createLog('User Self-Registration', `Created and logged into account ${profile.name}`, newUid, profile.name);
     addNotification(newUid, 'Welcome!', 'Thank you for registering at Ananya Enterprises portal.');
+  };
+
+  const loginViaOtp = async (mobile: string): Promise<boolean> => {
+    let activeUsers = users;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ananya_users');
+      if (stored) {
+        activeUsers = JSON.parse(stored);
+      }
+    }
+
+    const existing = activeUsers.find((u) => u.mobile === mobile);
+    if (existing) {
+      if (existing.status === 'suspended') {
+        alert('Your account is currently suspended. Please contact Ananya Admin.');
+        return false;
+      }
+      setUser(existing);
+      syncStorage('ananya_session', existing);
+      createLog('User Login (OTP)', `Logged in via OTP for mobile ${mobile}`, existing.uid, existing.name);
+      return true;
+    }
+    return false;
   };
 
   const logout = () => {
@@ -641,47 +949,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]);
   };
 
-  const updateProfile = (profileData: Partial<UserProfile>) => {
+  const updateProfile = async (profileData: Partial<UserProfile>) => {
     if (!user) return;
     const updatedUser = { ...user, ...profileData };
     setUser(updatedUser);
     syncStorage('ananya_session', updatedUser);
 
-    const updatedUsers = users.map((u) => (u.uid === user.uid ? updatedUser : u));
-    setUsers(updatedUsers);
-    syncStorage('ananya_users', updatedUsers);
+    const dbSaved = await syncDoc('users', user.uid, updatedUser);
+    if (!dbSaved) {
+      const updatedUsers = users.map((u) => (u.uid === user.uid ? updatedUser : u));
+      setUsers(updatedUsers);
+      syncStorage('ananya_users', updatedUsers);
+    }
 
     createLog('Profile Update', 'User updated personal details');
   };
 
   // Admin User & Role controls
-  const suspendUser = (uid: string) => {
-    const updated = users.map((u) => (u.uid === uid ? { ...u, status: 'suspended' as const } : u));
-    setUsers(updated);
-    syncStorage('ananya_users', updated);
+  const suspendUser = async (uid: string) => {
+    const targetUser = users.find(u => u.uid === uid);
+    if (targetUser) {
+      const revisedUser = { ...targetUser, status: 'suspended' as const };
+      const dbSaved = await syncDoc('users', uid, revisedUser);
+      if (!dbSaved) {
+        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+        setUsers(updated);
+        syncStorage('ananya_users', updated);
+      }
+    }
     createLog('Suspend User', `Suspended user UID: ${uid}`);
     addNotification(uid, 'Account Suspended', 'Your account has been suspended by the administrator.');
   };
 
-  const unsuspendUser = (uid: string) => {
-    const updated = users.map((u) => (u.uid === uid ? { ...u, status: 'active' as const } : u));
-    setUsers(updated);
-    syncStorage('ananya_users', updated);
+  const unsuspendUser = async (uid: string) => {
+    const targetUser = users.find(u => u.uid === uid);
+    if (targetUser) {
+      const revisedUser = { ...targetUser, status: 'active' as const };
+      const dbSaved = await syncDoc('users', uid, revisedUser);
+      if (!dbSaved) {
+        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+        setUsers(updated);
+        syncStorage('ananya_users', updated);
+      }
+    }
     createLog('Activate User', `Activated user UID: ${uid}`);
     addNotification(uid, 'Account Restored', 'Your account has been reactivated. You can now login.');
   };
 
-  const deleteUser = (uid: string) => {
-    const updated = users.filter((u) => u.uid !== uid);
-    setUsers(updated);
-    syncStorage('ananya_users', updated);
+  const deleteUser = async (uid: string) => {
+    const dbDeleted = await deleteDocHelper('users', uid);
+    if (!dbDeleted) {
+      const updated = users.filter((u) => u.uid !== uid);
+      setUsers(updated);
+      syncStorage('ananya_users', updated);
+    }
     createLog('Delete User', `Deleted user account UID: ${uid}`);
   };
 
-  const changeUserRole = (uid: string, role: 'consumer' | 'doctor' | 'admin') => {
-    const updated = users.map((u) => (u.uid === uid ? { ...u, role } : u));
-    setUsers(updated);
-    syncStorage('ananya_users', updated);
+  const changeUserRole = async (uid: string, role: 'consumer' | 'doctor' | 'admin') => {
+    const targetUser = users.find(u => u.uid === uid);
+    if (targetUser) {
+      const revisedUser = { ...targetUser, role };
+      const dbSaved = await syncDoc('users', uid, revisedUser);
+      if (!dbSaved) {
+        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+        setUsers(updated);
+        syncStorage('ananya_users', updated);
+      }
+    }
     createLog('Change User Role', `Assigned role ${role} to UID: ${uid}`);
     addNotification(uid, 'Role Level Updated', `Your system privileges changed. New Role: ${role.toUpperCase()}`);
 
@@ -702,6 +1037,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
           rating: 5.0
         };
+        
+        syncDoc('doctors', uid, newDoc);
+        
         const updatedDoctors = [...doctors, newDoc];
         setDoctors(updatedDoctors);
         syncStorage('ananya_doctors', updatedDoctors);
@@ -717,12 +1055,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Doctors
-  const addDoctor = (doc: Omit<DoctorProfile, 'uid'>) => {
+  const addDoctor = async (doc: Omit<DoctorProfile, 'uid'>) => {
     const newUid = `doc_${Date.now()}`;
     const newDoc: DoctorProfile = { ...doc, uid: newUid, rating: 5.0 };
-    const updated = [...doctors, newDoc];
-    setDoctors(updated);
-    syncStorage('ananya_doctors', updated);
+
+    const dbSaved = await syncDoc('doctors', newUid, newDoc);
+    if (!dbSaved) {
+      const updated = [...doctors, newDoc];
+      setDoctors(updated);
+      syncStorage('ananya_doctors', updated);
+    }
 
     // Create a companion User Account for the doctor to allow login
     const doctorUser: UserProfile = {
@@ -737,24 +1079,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'active',
       createdAt: new Date().toISOString()
     };
-    const updatedUsers = [...users, doctorUser];
-    setUsers(updatedUsers);
-    syncStorage('ananya_users', updatedUsers);
+    
+    syncDoc('users', newUid, doctorUser);
+    
+    if (!dbSaved) {
+      const updatedUsers = [...users, doctorUser];
+      setUsers(updatedUsers);
+      syncStorage('ananya_users', updatedUsers);
+    }
 
     createLog('Add Doctor Profile', `Added doctor ${doc.name} with specialty ${doc.specialty}`);
   };
 
-  const updateDoctor = (uid: string, docData: Partial<DoctorProfile>) => {
-    const updated = doctors.map((d) => (d.uid === uid ? { ...d, ...docData } : d));
-    setDoctors(updated);
-    syncStorage('ananya_doctors', updated);
+  const updateDoctor = async (uid: string, docData: Partial<DoctorProfile>) => {
+    const targetDoc = doctors.find((d) => d.uid === uid);
+    if (targetDoc) {
+      const revisedDoc = { ...targetDoc, ...docData };
+      const dbSaved = await syncDoc('doctors', uid, revisedDoc);
+      if (!dbSaved) {
+        const updated = doctors.map((d) => (d.uid === uid ? revisedDoc : d));
+        setDoctors(updated);
+        syncStorage('ananya_doctors', updated);
+      }
+    }
     createLog('Update Doctor Profile', `Updated profile of doctor ${uid}`);
   };
 
-  const deleteDoctor = (uid: string) => {
-    const updated = doctors.filter((d) => d.uid !== uid);
-    setDoctors(updated);
-    syncStorage('ananya_doctors', updated);
+  const deleteDoctor = async (uid: string) => {
+    const dbDeleted = await deleteDocHelper('doctors', uid);
+    if (!dbDeleted) {
+      const updated = doctors.filter((d) => d.uid !== uid);
+      setDoctors(updated);
+      syncStorage('ananya_doctors', updated);
+    }
     createLog('Remove Doctor Profile', `Deleted doctor listing: ${uid}`);
   };
 
@@ -775,9 +1132,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    const updated = [newApt, ...appointments];
-    setAppointments(updated);
-    syncStorage('ananya_appointments', updated);
+    const dbSaved = await syncDoc('appointments', newApt.id, newApt);
+    if (!dbSaved) {
+      const updated = [newApt, ...appointments];
+      setAppointments(updated);
+      syncStorage('ananya_appointments', updated);
+    }
 
     createLog('Book Appointment', `Booked appointment with ${aptData.doctorName} for ${aptData.date}`);
     
@@ -788,13 +1148,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newApt;
   };
 
-  const updateAppointmentStatus = (id: string, status: Appointment['status'], notes?: string, meetingLink?: string) => {
-    const updated = appointments.map((apt) => {
+  const updateAppointmentStatus = async (id: string, status: Appointment['status'], notes?: string, meetingLink?: string) => {
+    const revisedApts = appointments.map((apt) => {
       if (apt.id === id) {
         const revised = { ...apt, status };
         if (notes !== undefined) revised.notes = notes;
         if (meetingLink !== undefined) revised.meetingLink = meetingLink;
         
+        syncDoc('appointments', id, revised);
+
         // Push notification alerts to patient
         if (status === 'approved') {
           addNotification(apt.patientId, 'Appointment APPROVED', `Your appointment with ${apt.doctorName} on ${apt.date} is approved!`);
@@ -812,48 +1174,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return apt;
     });
 
-    setAppointments(updated);
-    syncStorage('ananya_appointments', updated);
+    if (!hasFirebaseCredentials() || !db) {
+      setAppointments(revisedApts);
+      syncStorage('ananya_appointments', revisedApts);
+    }
     createLog('Update Appointment', `Appointment ${id} status updated to: ${status}`);
   };
 
   const payConsultationFee = async (id: string, method: string): Promise<boolean> => {
     const paymentId = `pay_mock_${Math.floor(100000 + Math.random() * 900000)}`;
-    const updated = appointments.map((apt) => {
+    const revisedApts = appointments.map((apt) => {
       if (apt.id === id) {
+        const revised = { ...apt, paymentStatus: 'paid' as const, paymentId };
+        syncDoc('appointments', id, revised);
         addNotification(apt.patientId, 'Payment Successful', `Consultation fee of ₹${apt.fees} received. Txn: ${paymentId}`);
         addNotification('admin_1', 'Revenue Received', `Payment of ₹${apt.fees} logged for appointment ${id}.`);
-        return { ...apt, paymentStatus: 'paid' as const, paymentId };
+        return revised;
       }
       return apt;
     });
-    setAppointments(updated);
-    syncStorage('ananya_appointments', updated);
+
+    if (!hasFirebaseCredentials() || !db) {
+      setAppointments(revisedApts);
+      syncStorage('ananya_appointments', revisedApts);
+    }
     createLog('Process Fee Payment', `Logged fee payment for appointment ${id}. Method: ${method}`);
     return true;
   };
 
   // Medicine Inventory CRUD
-  const addMedicine = (med: Omit<Medicine, 'id'>) => {
+  const addMedicine = async (med: Omit<Medicine, 'id'>) => {
     const newId = `med_${Date.now()}`;
     const newMed: Medicine = { ...med, id: newId };
-    const updated = [...medicines, newMed];
-    setMedicines(updated);
-    syncStorage('ananya_medicines', updated);
+    
+    const dbSaved = await syncDoc('medicines', newId, newMed);
+    if (!dbSaved) {
+      const updated = [...medicines, newMed];
+      setMedicines(updated);
+      syncStorage('ananya_medicines', updated);
+    }
     createLog('Add Medicine Stock', `Added medicine ${med.name} into index`);
   };
 
-  const updateMedicine = (id: string, medData: Partial<Medicine>) => {
-    const updated = medicines.map((m) => (m.id === id ? { ...m, ...medData } : m));
-    setMedicines(updated);
-    syncStorage('ananya_medicines', updated);
+  const updateMedicine = async (id: string, medData: Partial<Medicine>) => {
+    const targetMed = medicines.find(m => m.id === id);
+    if (targetMed) {
+      const revisedMed = { ...targetMed, ...medData };
+      const dbSaved = await syncDoc('medicines', id, revisedMed);
+      if (!dbSaved) {
+        const updated = medicines.map((m) => (m.id === id ? revisedMed : m));
+        setMedicines(updated);
+        syncStorage('ananya_medicines', updated);
+      }
+    }
     createLog('Modify Medicine Stock', `Updated stock parameters of medicine ID: ${id}`);
   };
 
-  const removeMedicine = (id: string) => {
-    const updated = medicines.filter((m) => m.id !== id);
-    setMedicines(updated);
-    syncStorage('ananya_medicines', updated);
+  const removeMedicine = async (id: string) => {
+    const dbDeleted = await deleteDocHelper('medicines', id);
+    if (!dbDeleted) {
+      const updated = medicines.filter((m) => m.id !== id);
+      setMedicines(updated);
+      syncStorage('ananya_medicines', updated);
+    }
     createLog('Remove Medicine Stock', `Deleted medicine listing ID: ${id}`);
   };
 
@@ -912,17 +1295,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedMeds = medicines.map((m) => {
       const cartMatch = cart.find((c) => c.medicine.id === m.id);
       if (cartMatch) {
-        return { ...m, quantity: Math.max(0, m.quantity - cartMatch.quantity) };
+        const updatedQty = Math.max(0, m.quantity - cartMatch.quantity);
+        const updatedMed = { ...m, quantity: updatedQty };
+        syncDoc('medicines', m.id, updatedMed);
+        return updatedMed;
       }
       return m;
     });
-    setMedicines(updatedMeds);
-    syncStorage('ananya_medicines', updatedMeds);
+
+    if (!hasFirebaseCredentials() || !db) {
+      setMedicines(updatedMeds);
+      syncStorage('ananya_medicines', updatedMeds);
+    }
 
     // Save Order
-    const updatedOrders = [newOrder, ...orders];
-    setOrders(updatedOrders);
-    syncStorage('ananya_orders', updatedOrders);
+    const dbSaved = await syncDoc('orders', newOrder.id, newOrder);
+    if (!dbSaved) {
+      const updatedOrders = [newOrder, ...orders];
+      setOrders(updatedOrders);
+      syncStorage('ananya_orders', updatedOrders);
+    }
 
     // Clear cart local
     setCart([]);
@@ -935,11 +1327,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newOrder;
   };
 
-  const updateOrderStatus = (id: string, status: Order['status'], paymentStatus?: Order['paymentStatus']) => {
-    const updated = orders.map((o) => {
+  const updateOrderStatus = async (id: string, status: Order['status'], paymentStatus?: Order['paymentStatus']) => {
+    const revisedOrders = orders.map((o) => {
       if (o.id === id) {
         const revised = { ...o, status };
         if (paymentStatus) revised.paymentStatus = paymentStatus;
+
+        syncDoc('orders', id, revised);
 
         // Alerts to patient
         if (status === 'processing') {
@@ -955,13 +1349,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return o;
     });
 
-    setOrders(updated);
-    syncStorage('ananya_orders', updated);
+    if (!hasFirebaseCredentials() || !db) {
+      setOrders(revisedOrders);
+      syncStorage('ananya_orders', revisedOrders);
+    }
     createLog('Update Pharmacy Order', `Order ${id} status set to: ${status}`);
   };
 
   // Live Chat Messaging
-  const sendChatMessage = (appointmentId: string, text: string, fileData?: { data: string; name: string }) => {
+  const sendChatMessage = async (appointmentId: string, text: string, fileData?: { data: string; name: string }) => {
     if (!user) return;
 
     const newMsg: ChatMessage = {
@@ -975,9 +1371,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
 
-    const updated = [...chatMessages, newMsg];
-    setChatMessages(updated);
-    syncStorage('ananya_chats', updated);
+    const dbSaved = await syncDoc('chatMessages', newMsg.id, newMsg);
+    if (!dbSaved) {
+      const updated = [...chatMessages, newMsg];
+      setChatMessages(updated);
+      syncStorage('ananya_chats', updated);
+    }
 
     // Alert receiver depending on sender role
     const apt = appointments.find((a) => a.id === appointmentId);
@@ -988,7 +1387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Notifications Manager
-  const addNotification = (userId: string, title: string, body: string) => {
+  const addNotification = async (userId: string, title: string, body: string) => {
     const newNotif: Notification = {
       id: `notif_${Date.now()}`,
       userId,
@@ -997,17 +1396,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       read: false,
       createdAt: new Date().toISOString()
     };
-    setNotifications((prev) => {
-      const updated = [newNotif, ...prev];
-      syncStorage('ananya_notifications', updated);
-      return updated;
-    });
+
+    const dbSaved = await syncDoc('notifications', newNotif.id, newNotif);
+    if (!dbSaved) {
+      setNotifications((prev) => {
+        const updated = [newNotif, ...prev];
+        syncStorage('ananya_notifications', updated);
+        return updated;
+      });
+    }
+
+    // Fire FCM push notification if user has registered tokens
+    try {
+      let activeUsers = users;
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('ananya_users');
+        activeUsers = stored ? JSON.parse(stored) : users;
+      }
+      const target = activeUsers.find((u: any) => u.uid === userId);
+      if (target && target.fcmTokens && target.fcmTokens.length > 0) {
+        fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tokens: target.fcmTokens,
+            title,
+            body
+          })
+        }).catch(err => console.error('Push notification send call failed:', err));
+      }
+    } catch (err) {
+      console.error('Error dispatching push notification:', err);
+    }
   };
 
-  const markNotificationRead = (id: string) => {
-    const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
-    setNotifications(updated);
-    syncStorage('ananya_notifications', updated);
+  const markNotificationRead = async (id: string) => {
+    const targetNotif = notifications.find(n => n.id === id);
+    if (targetNotif) {
+      const revisedNotif = { ...targetNotif, read: true };
+      const dbSaved = await syncDoc('notifications', id, revisedNotif);
+      if (!dbSaved) {
+        const updated = notifications.map((n) => (n.id === id ? revisedNotif : n));
+        setNotifications(updated);
+        syncStorage('ananya_notifications', updated);
+      }
+    }
   };
 
   // Developer Bypass login
@@ -1059,6 +1492,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users,
         doctors,
         login,
+        loginViaOtp,
         logout,
         updateProfile,
         registerUser,
@@ -1091,7 +1525,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         addNotification,
         devLoginAs,
-        auditLogs
+        auditLogs,
+        language,
+        setLanguage
       }}
     >
       {children}

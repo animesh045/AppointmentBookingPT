@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta-sans",
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
 
 export const metadata: Metadata = {
   title: "Doctor appointment booking app - Ananya enterprises",
@@ -16,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark h-full scroll-smooth">
-      <body className="h-full flex flex-col antialiased text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 font-sans">
+    <html lang="en" className={`h-full scroll-smooth ${plusJakartaSans.variable}`}>
+      <body className="h-full flex flex-col antialiased text-slate-800 bg-slate-50 font-sans">
         <AppProvider>
           {children}
         </AppProvider>

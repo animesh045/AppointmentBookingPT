@@ -1,5 +1,6 @@
-// Firebase initialization helper
-// Detects if environment variables exist; if not, triggers the mock fallback.
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
@@ -21,3 +22,19 @@ export const hasFirebaseCredentials = (): boolean => {
 export const isDevMode = (): boolean => {
   return process.env.NODE_ENV === 'development' || true;
 };
+
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+
+if (typeof window !== 'undefined' && hasFirebaseCredentials()) {
+  try {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (err) {
+    console.error('Firebase Client SDK initialization error:', err);
+  }
+}
+
+export { app, auth, db };
