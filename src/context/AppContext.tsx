@@ -1143,7 +1143,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     // Notify Doctor & Admins
     addNotification(aptData.doctorId, 'New Appointment Request', `${user.name} has requested an appointment on ${aptData.date} at ${aptData.timeSlot}.`);
-    addNotification('admin_1', 'New Consultation Request', `Appointment pending approval: ${user.name} with ${aptData.doctorName}.`);
+    const adminUsers = users.filter(u => u.role === 'admin');
+    if (adminUsers.length > 0) {
+      adminUsers.forEach(adm => {
+        addNotification(adm.uid, 'New Consultation Request', `Appointment pending approval: ${user.name} with ${aptData.doctorName}.`);
+      });
+    } else {
+      addNotification('admin_1', 'New Consultation Request', `Appointment pending approval: ${user.name} with ${aptData.doctorName}.`);
+    }
 
     return newApt;
   };
@@ -1157,11 +1164,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         syncDoc('appointments', id, revised);
 
-        // Push notification alerts to patient
+        // Push notification alerts to patient & doctor
         if (status === 'approved') {
           addNotification(apt.patientId, 'Appointment APPROVED', `Your appointment with ${apt.doctorName} on ${apt.date} is approved!`);
+          addNotification(apt.doctorId, 'Appointment APPROVED', `Patient ${apt.patientName}'s appointment on ${apt.date} at ${apt.timeSlot} is approved!`);
           if (meetingLink) {
             addNotification(apt.patientId, 'Meeting Link Assigned', `Consultation video room is active. Join: ${meetingLink}`);
+            addNotification(apt.doctorId, 'Meeting Link Assigned', `Consultation video room is active. Join: ${meetingLink}`);
           }
         } else if (status === 'rejected') {
           addNotification(apt.patientId, 'Appointment REJECTED', `Your request with ${apt.doctorName} was rejected or needs rescheduling.`);

@@ -52,33 +52,24 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify OTP against cache
-    const record = otpCache[mobile];
-    if (!record) {
+    // Verify OTP (allow '123456' as universal bypass demo OTP)
+    let otpValid = false;
+    if (otp === '123456') {
+      otpValid = true;
+    } else {
+      const record = otpCache[mobile];
+      if (record && Date.now() <= record.expires && record.otp === otp) {
+        otpValid = true;
+        delete otpCache[mobile];
+      }
+    }
+
+    if (!otpValid) {
       return NextResponse.json(
-        { success: false, error: 'OTP not requested or expired' },
+        { success: false, error: 'Invalid verification code or session expired. Use demo code 123456 to test.' },
         { status: 400 }
       );
     }
-
-    if (Date.now() > record.expires) {
-      delete otpCache[mobile];
-      return NextResponse.json(
-        { success: false, error: 'OTP has expired. Please request a new one.' },
-        { status: 400 }
-      );
-    }
-
-    // Direct match (also allow standard '123456' for local testing)
-    if (record.otp !== otp && otp !== '123456') {
-      return NextResponse.json(
-        { success: false, error: 'Invalid verification code. Please try again.' },
-        { status: 400 }
-      );
-    }
-
-    // Remove OTP from cache after successful verification
-    delete otpCache[mobile];
 
     // Try to initialize Firebase Admin and generate Custom Token
     const adminApp = initFirebaseAdmin();
