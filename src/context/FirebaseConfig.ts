@@ -26,15 +26,25 @@ export const isDevMode = (): boolean => {
 let app: any = null;
 let auth: any = null;
 let db: any = null;
+let messaging: any = null;
 
 if (typeof window !== 'undefined' && hasFirebaseCredentials()) {
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+
+    // Dynamically import messaging to avoid Next.js SSR crashes
+    import('firebase/messaging').then(({ getMessaging, isSupported }) => {
+      isSupported().then((supported) => {
+        if (supported) {
+          messaging = getMessaging(app);
+        }
+      }).catch(err => console.error('FCM support check failed:', err));
+    }).catch(err => console.error('FCM import failed:', err));
   } catch (err) {
     console.error('Firebase Client SDK initialization error:', err);
   }
 }
 
-export { app, auth, db };
+export { app, auth, db, messaging };

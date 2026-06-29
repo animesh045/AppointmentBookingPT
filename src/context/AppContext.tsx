@@ -794,6 +794,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // Register FCM Token for logged-in user
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+
+    const registerFcmToken = async () => {
+      try {
+        const { messaging, hasFirebaseCredentials } = await import('./FirebaseConfig');
+        if (!hasFirebaseCredentials() || !messaging) return;
+
+        // Request permission
+        if (Notification.permission === 'default') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+            console.log('[FCM] Notification permission denied');
+            return;
+          }
+        }
+
+        // Register dynamic Service Worker
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('[FCM] Service Worker registered successfully:', registration);
+
+        const { getToken } = await import('firebase/messaging');
+        const token = await getToken(messaging, {
+          serviceWorkerRegistration: registration
+        });
+        
+        if (token) {
+          console.log('[FCM] Token retrieved:', token);
+          const existingTokens = user.fcmTokens || [];
+          if (!existingTokens.includes(token)) {
+            const updatedTokens = [...existingTokens, token];
+            await updateProfile({ fcmTokens: updatedTokens });
+          }
+        }
+      } catch (err) {
+        console.error('[FCM] Failed to register FCM token:', err);
+      }
+    };
+
+    const timer = setTimeout(registerFcmToken, 3000);
+    return () => clearTimeout(timer);
+  }, [user]);
+
   // Helper helper to write states to local storage
   const syncStorage = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
