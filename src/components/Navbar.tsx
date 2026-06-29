@@ -83,8 +83,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCart }) => {
       <div className="glass border-b border-slate-200/40 shadow-sm backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* Logo & Brand spacer */}
-          <div className="flex-1" />
+          {/* Logo & Brand */}
+          <Link href={user ? (user.role === 'admin' ? '/admin' : user.role === 'doctor' ? '/doctor' : '/dashboard') : '/'} className="flex items-center gap-2 group mr-4">
+            <div className="flex flex-col text-left">
+              <span className="font-extrabold text-lg leading-none bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent uppercase tracking-wider">
+                Ananya
+              </span>
+              <span className="text-[10px] tracking-widest text-slate-500 font-bold uppercase leading-none mt-1">
+                Enterprises
+              </span>
+            </div>
+          </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
@@ -112,16 +121,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCart }) => {
           {/* Action Utilities */}
           <div className="hidden md:flex items-center gap-4">
             
-            {/* Right-aligned Brand Name */}
-            <div className="flex flex-col items-end mr-2">
-              <span className="font-extrabold text-sm leading-none bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent uppercase tracking-wider">
-                Ananya
-              </span>
-              <span className="text-[9px] tracking-widest text-slate-500 font-bold uppercase leading-none mt-0.5">
-                Enterprises
-              </span>
-            </div>
-
             {/* Language Selector */}
             <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 border border-slate-200">
               <button
@@ -279,16 +278,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCart }) => {
 
           {/* Mobile Menu Toggler */}
           <div className="flex items-center gap-2.5 md:hidden">
-            {/* Mobile Brand Name */}
-            <div className="flex flex-col items-end mr-1 select-none">
-              <span className="font-extrabold text-[10px] leading-none bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent uppercase tracking-wider">
-                Ananya
-              </span>
-              <span className="text-[7px] tracking-widest text-slate-500 font-bold uppercase leading-none mt-0.5">
-                Enterprises
-              </span>
-            </div>
-
             {/* Language Selector Mobile */}
             <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 border border-slate-200 scale-90">
               <button
