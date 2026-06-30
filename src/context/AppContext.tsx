@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db, hasFirebaseCredentials } from './FirebaseConfig';
+import { db, auth, hasFirebaseCredentials } from './FirebaseConfig';
 import { 
   collection, 
   doc, 
@@ -411,6 +411,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load initial data from LocalStorage or seed defaults / Listen to Firestore
   useEffect(() => {
     if (hasFirebaseCredentials() && db) {
+      // Authenticate anonymously to satisfy security rules for writes
+      if (auth) {
+        import('firebase/auth').then(({ signInAnonymously }) => {
+          signInAnonymously(auth).catch((err) => {
+            console.error('Firebase Anonymous Sign-In failed:', err);
+          });
+        }).catch(err => console.error('firebase/auth import failed:', err));
+      }
+
       // 1. Listen to users
       const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as UserProfile);

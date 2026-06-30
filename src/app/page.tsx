@@ -342,6 +342,20 @@ export default function Home() {
       if (data.success) {
         setAuthUid(data.uid);
         
+        // Sign in to Firebase Auth on the client with the custom token
+        if (data.customToken && !data.isMock) {
+          try {
+            const { signInWithCustomToken } = await import('firebase/auth');
+            const { auth } = await import('@/context/FirebaseConfig');
+            if (auth) {
+              await signInWithCustomToken(auth, data.customToken);
+              console.log('[Firebase Auth] Signed in successfully with custom token.');
+            }
+          } catch (authErr) {
+            console.error('[Firebase Auth] Client sign-in with custom token failed:', authErr);
+          }
+        }
+        
         // Try logging in the user if profile already exists
         const loggedIn = await loginViaOtp(mobile);
         if (loggedIn) {
