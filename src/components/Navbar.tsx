@@ -36,7 +36,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCart }) => {
   const [mounted, setMounted] = useState(false);
 
   React.useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);

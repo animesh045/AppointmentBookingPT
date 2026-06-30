@@ -89,8 +89,9 @@ export async function POST(request: Request) {
           let userRecord;
           try {
             userRecord = await authAdmin.getUserByPhoneNumber(formattedPhone);
-          } catch (err: any) {
-            if (err.code === 'auth/user-not-found') {
+          } catch (err) {
+            const fbErr = err as { code?: string };
+            if (fbErr.code === 'auth/user-not-found') {
               // User doesn't exist in Firebase Auth yet, create them
               userRecord = await authAdmin.createUser({
                 phoneNumber: formattedPhone,

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useApp } from '@/context/AppContext';
+import { useApp, Medicine } from '@/context/AppContext';
 import { Navbar } from '@/components/Navbar';
 import { CartDrawer } from '@/components/CartDrawer';
 import { 
@@ -55,14 +55,10 @@ export default function PharmacyStore() {
 
   // Call duration counter simulator
   useEffect(() => {
-    let interval: any;
-    if (callActive) {
-      interval = setInterval(() => {
-        setCallTimer((prev) => prev + 1);
-      }, 1000);
-    } else {
-      setCallTimer(0);
-    }
+    if (!callActive) return;
+    const interval = setInterval(() => {
+      setCallTimer((prev) => prev + 1);
+    }, 1000);
     return () => clearInterval(interval);
   }, [callActive]);
 
@@ -76,7 +72,7 @@ export default function PharmacyStore() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleAddToCart = (med: any) => {
+  const handleAddToCart = (med: Medicine) => {
     if (med.quantity <= 0) {
       alert('This medicine is currently out of stock');
       return;
@@ -128,7 +124,7 @@ export default function PharmacyStore() {
           
           <div className="flex gap-3 relative">
             <button
-              onClick={() => setCallActive(true)}
+              onClick={() => { setCallActive(true); setCallTimer(0); }}
               className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] transition-all shadow"
             >
               <PhoneCall className="h-3.5 w-3.5 text-teal-500 dark:text-teal-600" />

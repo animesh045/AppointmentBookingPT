@@ -340,40 +340,230 @@ const DEFAULT_USERS: UserProfile[] = [
   }
 ];
 
+// ID and Timestamp helpers (defined at file scope to satisfy react-hooks/purity rules)
+const generateAppointmentId = (): string => `apt_${Date.now()}`;
+const generatePaymentId = (): string => `pay_mock_${Math.floor(100000 + Math.random() * 900000)}`;
+const generateOrderId = (): string => `ord_${Date.now()}`;
+const generateMessageId = (): string => `msg_${Date.now()}`;
+const generateNotificationId = (): string => `notif_${Date.now()}`;
+const generateUserUid = (): string => `user_${Date.now()}`;
+const generateLogId = (): string => `log_${Date.now()}`;
+
 // ==========================================
 // CONTEXT PROVIDER COMPONENT
 // ==========================================
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Global Collections
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  // Global Collections (using lazy state initialization to prevent useEffect setState warnings)
+  const [users, setUsers] = useState<UserProfile[]>(() => {
+    if (typeof window !== 'undefined') {
+      const localUsers = localStorage.getItem('ananya_users');
+      if (localUsers) {
+        try {
+          const parsed = JSON.parse(localUsers) as UserProfile[];
+          // Make sure we have admin and doctor seeded
+          const hasActiveAdmin = parsed.some((u) => u.role === 'admin' && u.status === 'active');
+          if (!hasActiveAdmin) {
+            const adminIndex = parsed.findIndex((u) => u.mobile === '8368825928');
+            if (adminIndex === -1) {
+              const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
+              if (defaultAdmin) parsed.push(defaultAdmin);
+            } else {
+              parsed[adminIndex].role = 'admin';
+              parsed[adminIndex].passcode = '1234';
+            }
+            localStorage.setItem('ananya_users', JSON.stringify(parsed));
+          }
+          const doctorIndex = parsed.findIndex((u) => u.mobile === '8888888888');
+          if (doctorIndex === -1) {
+            const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888');
+            if (defaultDoctor) parsed.push(defaultDoctor);
+            localStorage.setItem('ananya_users', JSON.stringify(parsed));
+          }
+          return parsed;
+        } catch (e) {
+          return DEFAULT_USERS;
+        }
+      }
+      localStorage.setItem('ananya_users', JSON.stringify(DEFAULT_USERS));
+      return DEFAULT_USERS;
+    }
+    return [];
+  });
 
-  // Local Session
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [doctors, setDoctors] = useState<DoctorProfile[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_doctors');
+      if (local) return JSON.parse(local);
+      localStorage.setItem('ananya_doctors', JSON.stringify(DEFAULT_DOCTORS));
+      return DEFAULT_DOCTORS;
+    }
+    return [];
+  });
+
+  const [medicines, setMedicines] = useState<Medicine[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_medicines');
+      if (local) return JSON.parse(local);
+      localStorage.setItem('ananya_medicines', JSON.stringify(DEFAULT_MEDICINES));
+      return DEFAULT_MEDICINES;
+    }
+    return [];
+  });
+
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_appointments');
+      if (local) return JSON.parse(local);
+      const initial = [
+        {
+          id: 'apt_1001',
+          patientId: 'consumer_demo',
+          patientName: 'Rahul Sharma',
+          patientMobile: '7777777777',
+          doctorId: 'doc_ananya',
+          doctorName: 'Dr. Ananya Sharma',
+          specialty: 'Cardiologist & General Medicine',
+          date: new Date().toISOString().split('T')[0],
+          timeSlot: '10:00 AM',
+          reason: 'Routine cardiac health review and prescription renewal.',
+          fees: 600,
+          status: 'approved' as const,
+          paymentStatus: 'paid' as const,
+          paymentId: 'pay_mock_12345',
+          meetingLink: 'https://meet.google.com/abc-defg-hij',
+          notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
+          createdAt: new Date(Date.now() - 86400000).toISOString()
+        }
+      ];
+      localStorage.setItem('ananya_appointments', JSON.stringify(initial));
+      return initial;
+    }
+    return [];
+  });
+
+  const [orders, setOrders] = useState<Order[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_orders');
+      if (local) return JSON.parse(local);
+      const initial = [
+        {
+          id: 'ord_2001',
+          patientId: 'consumer_demo',
+          patientName: 'Rahul Sharma',
+          patientMobile: '7777777777',
+          items: [
+            { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
+            { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
+          ],
+          totalAmount: 240,
+          paymentStatus: 'paid' as const,
+          status: 'delivered' as const,
+          paymentId: 'pay_mock_99887',
+          deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
+          fastBooking: false,
+          createdAt: new Date(Date.now() - 172800000).toISOString()
+        }
+      ];
+      localStorage.setItem('ananya_orders', JSON.stringify(initial));
+      return initial;
+    }
+    return [];
+  });
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_chats');
+      if (local) return JSON.parse(local);
+      const initial = [
+        {
+          id: 'msg_1',
+          appointmentId: 'apt_1001',
+          senderId: 'doc_ananya',
+          senderName: 'Dr. Ananya Sharma',
+          text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
+          timestamp: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+          id: 'msg_2',
+          appointmentId: 'apt_1001',
+          senderId: 'consumer_demo',
+          senderName: 'Rahul Sharma',
+          text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
+          timestamp: new Date(Date.now() - 3400000).toISOString()
+        }
+      ];
+      localStorage.setItem('ananya_chats', JSON.stringify(initial));
+      return initial;
+    }
+    return [];
+  });
+
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_notifications');
+      if (local) return JSON.parse(local);
+      const initial = [
+        {
+          id: 'notif_1',
+          userId: 'consumer_demo',
+          title: 'Appointment Approved',
+          body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
+          read: false,
+          createdAt: new Date().toISOString()
+        }
+      ];
+      localStorage.setItem('ananya_notifications', JSON.stringify(initial));
+      return initial;
+    }
+    return [];
+  });
+
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_logs');
+      if (local) return JSON.parse(local);
+      const initial = [
+        {
+          id: 'log_1',
+          userId: 'admin_1',
+          userName: 'Animesh Gupta (Admin)',
+          action: 'System Initialization',
+          details: 'Ananya Enterprises portal configured and pre-seeded.',
+          timestamp: new Date().toISOString()
+        }
+      ];
+      localStorage.setItem('ananya_logs', JSON.stringify(initial));
+      return initial;
+    }
+    return [];
+  });
+
+  // Local Session (using lazy state initialization to prevent useEffect setState warnings)
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (typeof window !== 'undefined') {
+      const activeSession = localStorage.getItem('ananya_session');
+      return activeSession ? JSON.parse(activeSession) : null;
+    }
+    return null;
+  });
+
   const userRef = React.useRef<UserProfile | null>(null);
   useEffect(() => {
     userRef.current = user;
   }, [user]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [language, setLanguageState] = useState<'en' | 'hi'>('en');
-
-  // Load language preference from localStorage
-  useEffect(() => {
+  
+  const [language, setLanguageState] = useState<'en' | 'hi'>(() => {
     if (typeof window !== 'undefined') {
-      const storedLang = localStorage.getItem('ananya_language') as 'en' | 'hi' | null;
+      const storedLang = localStorage.getItem('ananya_language');
       if (storedLang === 'en' || storedLang === 'hi') {
-        setLanguageState(storedLang);
+        return storedLang as 'en' | 'hi';
       }
     }
-  }, []);
+    return 'en';
+  });
 
   const setLanguage = (lang: 'en' | 'hi') => {
     setLanguageState(lang);
@@ -383,6 +573,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Helper to sync doc to Firestore
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const syncDoc = async (collectionName: string, id: string, data: any) => {
     if (hasFirebaseCredentials() && db) {
       try {
@@ -414,7 +605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Authenticate anonymously to satisfy security rules for writes
       if (auth) {
         import('firebase/auth').then(({ signInAnonymously }) => {
-          signInAnonymously(auth).catch((err) => {
+          signInAnonymously(auth!).catch((err) => {
             console.error('Firebase Anonymous Sign-In failed:', err);
           });
         }).catch(err => console.error('firebase/auth import failed:', err));
@@ -423,48 +614,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Listen to users
       const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as UserProfile);
-        if (docs.length === 0) {
-          DEFAULT_USERS.forEach(async (u) => {
-            await setDoc(doc(db, 'users', u.uid), u);
-          });
-        } else {
-          // Check if any active admin is in the database
-          const hasActiveAdmin = docs.some((u) => u.role === 'admin' && u.status === 'active');
-          if (!hasActiveAdmin) {
-            const adminIdx = docs.findIndex((u) => u.mobile === '8368825928');
-            if (adminIdx === -1) {
-              const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-              if (defaultAdmin) {
-                setDoc(doc(db, 'users', defaultAdmin.uid), defaultAdmin);
-              }
-            } else if (docs[adminIdx].role !== 'admin' || docs[adminIdx].passcode !== '1234') {
-              const revisedAdmin = { ...docs[adminIdx], role: 'admin' as const, passcode: '1234' };
-              setDoc(doc(db, 'users', revisedAdmin.uid), revisedAdmin);
-            }
-          }
+        setUsers(docs);
 
-          // Check if default doctor is in the database and has correct role/passcode
-          const doctorIdx = docs.findIndex((u) => u.mobile === '8888888888');
-          if (doctorIdx === -1) {
-            const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888');
-            if (defaultDoctor) {
-              setDoc(doc(db, 'users', defaultDoctor.uid), defaultDoctor);
-            }
-          } else if (docs[doctorIdx].role !== 'doctor' || docs[doctorIdx].passcode !== '1234') {
-            const revisedDoctor = { ...docs[doctorIdx], role: 'doctor' as const, passcode: '1234' };
-            setDoc(doc(db, 'users', revisedDoctor.uid), revisedDoctor);
-          }
-
-          setUsers(docs);
-
-          // Sync current logged-in user if they exist in the new docs
-          const currentLoggedIn = userRef.current;
-          if (currentLoggedIn) {
-            const freshUser = docs.find(u => u.uid === currentLoggedIn.uid);
-            if (freshUser && (freshUser.role !== currentLoggedIn.role || freshUser.status !== currentLoggedIn.status || freshUser.name !== currentLoggedIn.name || freshUser.passcode !== currentLoggedIn.passcode)) {
-              setUser(freshUser);
-              localStorage.setItem('ananya_session', JSON.stringify(freshUser));
-            }
+        // Sync current logged-in user if they exist in the new docs
+        const currentLoggedIn = userRef.current;
+        if (currentLoggedIn) {
+          const freshUser = docs.find(u => u.uid === currentLoggedIn.uid);
+          if (freshUser && (freshUser.role !== currentLoggedIn.role || freshUser.status !== currentLoggedIn.status || freshUser.name !== currentLoggedIn.name || freshUser.passcode !== currentLoggedIn.passcode)) {
+            setUser(freshUser);
+            localStorage.setItem('ananya_session', JSON.stringify(freshUser));
           }
         }
       });
@@ -472,175 +630,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 2. Listen to doctors
       const unsubDoctors = onSnapshot(collection(db, 'doctors'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as DoctorProfile);
-        if (docs.length === 0) {
-          DEFAULT_DOCTORS.forEach(async (d) => {
-            await setDoc(doc(db, 'doctors', d.uid), d);
-          });
-        } else {
-          setDoctors(docs);
-        }
+        setDoctors(docs);
       });
 
       // 3. Listen to medicines
       const unsubMedicines = onSnapshot(collection(db, 'medicines'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as Medicine);
-        if (docs.length === 0) {
-          DEFAULT_MEDICINES.forEach(async (m) => {
-            await setDoc(doc(db, 'medicines', m.id), m);
-          });
-        } else {
-          setMedicines(docs);
-        }
+        setMedicines(docs);
       });
 
       // 4. Listen to appointments
       const unsubAppointments = onSnapshot(collection(db, 'appointments'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as Appointment);
-        if (docs.length === 0) {
-          const initialAppointments: Appointment[] = [
-            {
-              id: 'apt_1001',
-              patientId: 'consumer_demo',
-              patientName: 'Rahul Sharma',
-              patientMobile: '7777777777',
-              doctorId: 'doc_ananya',
-              doctorName: 'Dr. Ananya Sharma',
-              specialty: 'Cardiologist & General Medicine',
-              date: new Date().toISOString().split('T')[0],
-              timeSlot: '10:00 AM',
-              reason: 'Routine cardiac health review and prescription renewal.',
-              fees: 600,
-              status: 'approved',
-              paymentStatus: 'paid',
-              paymentId: 'pay_mock_12345',
-              meetingLink: 'https://meet.google.com/abc-defg-hij',
-              notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
-              createdAt: new Date(Date.now() - 86400000).toISOString()
-            }
-          ];
-          initialAppointments.forEach(async (apt) => {
-            await setDoc(doc(db, 'appointments', apt.id), apt);
-          });
-        } else {
-          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setAppointments(docs);
-        }
+        docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setAppointments(docs);
       });
 
       // 5. Listen to orders
       const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as Order);
-        if (docs.length === 0) {
-          const initialOrders: Order[] = [
-            {
-              id: 'ord_2001',
-              patientId: 'consumer_demo',
-              patientName: 'Rahul Sharma',
-              patientMobile: '7777777777',
-              items: [
-                { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
-                { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
-              ],
-              totalAmount: 240,
-              paymentStatus: 'paid',
-              status: 'delivered',
-              paymentId: 'pay_mock_99887',
-              deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
-              fastBooking: false,
-              createdAt: new Date(Date.now() - 172800000).toISOString()
-            }
-          ];
-          initialOrders.forEach(async (ord) => {
-            await setDoc(doc(db, 'orders', ord.id), ord);
-          });
-        } else {
-          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setOrders(docs);
-        }
+        docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setOrders(docs);
       });
 
       // 6. Listen to chatMessages
       const unsubChats = onSnapshot(collection(db, 'chatMessages'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as ChatMessage);
-        if (docs.length === 0) {
-          const initialChats: ChatMessage[] = [
-            {
-              id: 'msg_1',
-              appointmentId: 'apt_1001',
-              senderId: 'doc_ananya',
-              senderName: 'Dr. Ananya Sharma',
-              text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
-              timestamp: new Date(Date.now() - 3600000).toISOString()
-            },
-            {
-              id: 'msg_2',
-              appointmentId: 'apt_1001',
-              senderId: 'consumer_demo',
-              senderName: 'Rahul Sharma',
-              text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
-              timestamp: new Date(Date.now() - 3400000).toISOString()
-            }
-          ];
-          initialChats.forEach(async (c) => {
-            await setDoc(doc(db, 'chatMessages', c.id), c);
-          });
-        } else {
-          docs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          setChatMessages(docs);
-        }
+        docs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        setChatMessages(docs);
       });
 
       // 7. Listen to notifications
       const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as Notification);
-        if (docs.length === 0) {
-          const initialNotifs: Notification[] = [
-            {
-              id: 'notif_1',
-              userId: 'consumer_demo',
-              title: 'Appointment Approved',
-              body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
-              read: false,
-              createdAt: new Date().toISOString()
-            }
-          ];
-          initialNotifs.forEach(async (n) => {
-            await setDoc(doc(db, 'notifications', n.id), n);
-          });
-        } else {
-          docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setNotifications(docs);
-        }
+        docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setNotifications(docs);
       });
 
       // 8. Listen to auditLogs
       const unsubLogs = onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as AuditLog);
-        if (docs.length === 0) {
-          const initialLogs: AuditLog[] = [
-            {
-              id: 'log_1',
-              userId: 'admin_1',
-              userName: 'Animesh Gupta (Admin)',
-              action: 'System Initialization',
-              details: 'Ananya Enterprises portal configured and pre-seeded.',
-              timestamp: new Date().toISOString()
-            }
-          ];
-          initialLogs.forEach(async (l) => {
-            await setDoc(doc(db, 'auditLogs', l.id), l);
-          });
-        } else {
-          docs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-          setAuditLogs(docs);
-        }
+        docs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setAuditLogs(docs);
       });
-
-      // Load session local
-      const activeSession = localStorage.getItem('ananya_session');
-      if (activeSession) {
-        setUser(JSON.parse(activeSession));
-      }
 
       return () => {
         unsubUsers();
@@ -652,199 +684,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubNotifications();
         unsubLogs();
       };
-    } else {
-      // Offline/unconfigured fallback
-      const localUsers = localStorage.getItem('ananya_users');
-      const localDoctors = localStorage.getItem('ananya_doctors');
-      const localMedicines = localStorage.getItem('ananya_medicines');
-      const localAppointments = localStorage.getItem('ananya_appointments');
-      const localOrders = localStorage.getItem('ananya_orders');
-      const localChats = localStorage.getItem('ananya_chats');
-      const localNotifications = localStorage.getItem('ananya_notifications');
-      const localLogs = localStorage.getItem('ananya_logs');
-      const activeSession = localStorage.getItem('ananya_session');
-
-      // Seeding users local
-      let parsed = DEFAULT_USERS;
-      if (localUsers) {
-        parsed = JSON.parse(localUsers);
-        const hasActiveAdmin = parsed.some((u: any) => u.role === 'admin' && u.status === 'active');
-        if (!hasActiveAdmin) {
-          const adminIndex = parsed.findIndex((u: any) => u.mobile === '8368825928');
-          if (adminIndex === -1) {
-            const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-            if (defaultAdmin) {
-              parsed.push(defaultAdmin);
-              localStorage.setItem('ananya_users', JSON.stringify(parsed));
-            }
-          } else if (parsed[adminIndex].role !== 'admin' || parsed[adminIndex].passcode !== '1234') {
-            parsed[adminIndex].role = 'admin';
-            parsed[adminIndex].passcode = '1234';
-            localStorage.setItem('ananya_users', JSON.stringify(parsed));
-          }
-        }
-
-        const doctorIndex = parsed.findIndex((u: any) => u.mobile === '8888888888');
-        if (doctorIndex === -1) {
-          const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888');
-          if (defaultDoctor) {
-            parsed.push(defaultDoctor);
-            localStorage.setItem('ananya_users', JSON.stringify(parsed));
-          }
-        } else if (parsed[doctorIndex].role !== 'doctor' || parsed[doctorIndex].passcode !== '1234') {
-          parsed[doctorIndex].role = 'doctor';
-          parsed[doctorIndex].passcode = '1234';
-          localStorage.setItem('ananya_users', JSON.stringify(parsed));
-        }
-        setUsers(parsed);
-      } else {
-        localStorage.setItem('ananya_users', JSON.stringify(DEFAULT_USERS));
-        setUsers(DEFAULT_USERS);
-      }
-
-      // Seeding doctors local
-      if (localDoctors) {
-        setDoctors(JSON.parse(localDoctors));
-      } else {
-        localStorage.setItem('ananya_doctors', JSON.stringify(DEFAULT_DOCTORS));
-        setDoctors(DEFAULT_DOCTORS);
-      }
-
-      // Seeding medicines local
-      if (localMedicines) {
-        setMedicines(JSON.parse(localMedicines));
-      } else {
-        localStorage.setItem('ananya_medicines', JSON.stringify(DEFAULT_MEDICINES));
-        setMedicines(DEFAULT_MEDICINES);
-      }
-
-      // Seeding appointments local
-      if (localAppointments) {
-        setAppointments(JSON.parse(localAppointments));
-      } else {
-        const initialAppointments: Appointment[] = [
-          {
-            id: 'apt_1001',
-            patientId: 'consumer_demo',
-            patientName: 'Rahul Sharma',
-            patientMobile: '7777777777',
-            doctorId: 'doc_ananya',
-            doctorName: 'Dr. Ananya Sharma',
-            specialty: 'Cardiologist & General Medicine',
-            date: new Date().toISOString().split('T')[0],
-            timeSlot: '10:00 AM',
-            reason: 'Routine cardiac health review and prescription renewal.',
-            fees: 600,
-            status: 'approved',
-            paymentStatus: 'paid',
-            paymentId: 'pay_mock_12345',
-            meetingLink: 'https://meet.google.com/abc-defg-hij',
-            notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
-            createdAt: new Date(Date.now() - 86400000).toISOString()
-          }
-        ];
-        localStorage.setItem('ananya_appointments', JSON.stringify(initialAppointments));
-        setAppointments(initialAppointments);
-      }
-
-      // Seeding orders local
-      if (localOrders) {
-        setOrders(JSON.parse(localOrders));
-      } else {
-        const initialOrders: Order[] = [
-          {
-            id: 'ord_2001',
-            patientId: 'consumer_demo',
-            patientName: 'Rahul Sharma',
-            patientMobile: '7777777777',
-            items: [
-              { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
-              { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
-            ],
-            totalAmount: 240,
-            paymentStatus: 'paid',
-            status: 'delivered',
-            paymentId: 'pay_mock_99887',
-            deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
-            fastBooking: false,
-            createdAt: new Date(Date.now() - 172800000).toISOString()
-          }
-        ];
-        localStorage.setItem('ananya_orders', JSON.stringify(initialOrders));
-        setOrders(initialOrders);
-      }
-
-      // Seeding chats local
-      if (localChats) {
-        setChatMessages(JSON.parse(localChats));
-      } else {
-        const initialChats: ChatMessage[] = [
-          {
-            id: 'msg_1',
-            appointmentId: 'apt_1001',
-            senderId: 'doc_ananya',
-            senderName: 'Dr. Ananya Sharma',
-            text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
-            timestamp: new Date(Date.now() - 3600000).toISOString()
-          },
-          {
-            id: 'msg_2',
-            appointmentId: 'apt_1001',
-            senderId: 'consumer_demo',
-            senderName: 'Rahul Sharma',
-            text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
-            timestamp: new Date(Date.now() - 3400000).toISOString()
-          }
-        ];
-        localStorage.setItem('ananya_chats', JSON.stringify(initialChats));
-        setChatMessages(initialChats);
-      }
-
-      // Seeding Notifications local
-      if (localNotifications) {
-        setNotifications(JSON.parse(localNotifications));
-      } else {
-        const initialNotifs: Notification[] = [
-          {
-            id: 'notif_1',
-            userId: 'consumer_demo',
-            title: 'Appointment Approved',
-            body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
-            read: false,
-            createdAt: new Date().toISOString()
-          }
-        ];
-        localStorage.setItem('ananya_notifications', JSON.stringify(initialNotifs));
-        setNotifications(initialNotifs);
-      }
-
-      // Seeding Logs local
-      if (localLogs) {
-        setAuditLogs(JSON.parse(localLogs));
-      } else {
-        const initialLogs: AuditLog[] = [
-          {
-            id: 'log_1',
-            userId: 'admin_1',
-            userName: 'Animesh Gupta (Admin)',
-            action: 'System Initialization',
-            details: 'Ananya Enterprises portal configured and pre-seeded.',
-            timestamp: new Date().toISOString()
-          }
-        ];
-        localStorage.setItem('ananya_logs', JSON.stringify(initialLogs));
-        setAuditLogs(initialLogs);
-      }
-
-      if (activeSession) {
-        setUser(JSON.parse(activeSession));
-      }
     }
   }, []);
 
   // Synchronize localStorage updates across tabs/windows or manual triggers in same window
   useEffect(() => {
-    const handleStorage = (e: any) => {
+    const handleStorage = (e: Event) => {
       const localUsers = localStorage.getItem('ananya_users');
       let parsedUsers = DEFAULT_USERS;
       if (localUsers) {
@@ -887,90 +732,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Register FCM Token for logged-in user
-  useEffect(() => {
-    if (!user || typeof window === 'undefined') return;
 
-    const registerFcmToken = async () => {
-      try {
-        const { messaging, hasFirebaseCredentials } = await import('./FirebaseConfig');
-        if (!hasFirebaseCredentials() || !messaging) return;
-
-        // Request permission
-        if (Notification.permission === 'default') {
-          const permission = await Notification.requestPermission();
-          if (permission !== 'granted') {
-            console.log('[FCM] Notification permission denied');
-            return;
-          }
-        }
-
-        // Register dynamic Service Worker
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('[FCM] Service Worker registered successfully:', registration);
-
-        const { getToken } = await import('firebase/messaging');
-        const token = await getToken(messaging, {
-          serviceWorkerRegistration: registration
-        });
-        
-        if (token) {
-          console.log('[FCM] Token retrieved:', token);
-          const existingTokens = user.fcmTokens || [];
-          if (!existingTokens.includes(token)) {
-            const updatedTokens = [...existingTokens, token];
-            await updateProfile({ fcmTokens: updatedTokens });
-          }
-        }
-      } catch (err) {
-        console.error('[FCM] Failed to register FCM token:', err);
-      }
-    };
-
-    const timer = setTimeout(registerFcmToken, 3000);
-    return () => clearTimeout(timer);
-  }, [user]);
-
-  // Listen to foreground FCM messages
-  useEffect(() => {
-    if (!user || typeof window === 'undefined') return;
-
-    let unsub: (() => void) | undefined;
-
-    const listenForeground = async () => {
-      try {
-        const { messaging, hasFirebaseCredentials } = await import('./FirebaseConfig');
-        if (!hasFirebaseCredentials() || !messaging) return;
-
-        const { onMessage } = await import('firebase/messaging');
-        unsub = onMessage(messaging, (payload) => {
-          console.log('[FCM] Foreground message received:', payload);
-          if (Notification.permission === 'granted') {
-            new Notification(payload.notification?.title || 'Ananya Enterprises', {
-              body: payload.notification?.body || '',
-              icon: '/favicon.ico'
-            });
-          }
-        });
-      } catch (err) {
-        console.error('[FCM] Foreground listener registration failed:', err);
-      }
-    };
-
-    listenForeground();
-    return () => {
-      if (unsub) unsub();
-    };
-  }, [user]);
 
   // Helper helper to write states to local storage
-  const syncStorage = (key: string, data: any) => {
+  const syncStorage = (key: string, data: unknown) => {
     localStorage.setItem(key, JSON.stringify(data));
   };
 
   const createLog = async (action: string, details: string, uid?: string, name?: string) => {
     const newLog: AuditLog = {
-      id: `log_${Date.now()}`,
+      id: generateLogId(),
       userId: uid || user?.uid || 'guest',
       userName: name || user?.name || 'Guest User',
       action,
@@ -1118,7 +889,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const newUid = customUid || `user_${Date.now()}`;
+    const newUid = customUid || generateUserUid();
     const newUser: UserProfile = {
       ...profile,
       uid: newUid,
@@ -1404,7 +1175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     const newApt: Appointment = {
       ...aptData,
-      id: `apt_${Date.now()}`,
+      id: generateAppointmentId(),
       patientId: user.uid,
       patientName: user.name,
       patientMobile: user.mobile,
@@ -1512,7 +1283,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const payConsultationFee = async (id: string, method: string): Promise<boolean> => {
-    const paymentId = `pay_mock_${Math.floor(100000 + Math.random() * 900000)}`;
+    const paymentId = generatePaymentId();
     const revisedApts = appointments.map((apt) => {
       if (apt.id === id) {
         const revised = { ...apt, paymentStatus: 'paid' as const, paymentId };
@@ -1599,10 +1370,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cart.length === 0) throw new Error('Cart is empty');
 
     const total = cart.reduce((sum, item) => sum + item.medicine.price * item.quantity, 0);
-    const paymentId = payNow ? `pay_mock_${Math.floor(100000 + Math.random() * 900000)}` : undefined;
+    const paymentId = payNow ? generatePaymentId() : undefined;
 
     const newOrder: Order = {
-      id: `ord_${Date.now()}`,
+      id: generateOrderId(),
       patientId: user.uid,
       patientName: user.name,
       patientMobile: user.mobile,
@@ -1691,7 +1462,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
 
     const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
+      id: generateMessageId(),
       appointmentId,
       senderId: user.uid,
       senderName: user.name,
@@ -1719,7 +1490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Notifications Manager
   const addNotification = async (userId: string, title: string, body: string) => {
     const newNotif: Notification = {
-      id: `notif_${Date.now()}`,
+      id: generateNotificationId(),
       userId,
       title,
       body,
@@ -1743,7 +1514,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const stored = localStorage.getItem('ananya_users');
         activeUsers = stored ? JSON.parse(stored) : users;
       }
-      const target = activeUsers.find((u: any) => u.uid === userId);
+      const target = activeUsers.find((u: UserProfile) => u.uid === userId);
       if (target && target.fcmTokens && target.fcmTokens.length > 0) {
         fetch('/api/notifications/send', {
           method: 'POST',
@@ -1814,6 +1585,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createLog('Developer Quick Sign-In', `Bypassed authentication to act as ${role.toUpperCase()}`, mockAccount.uid, mockAccount.name);
     }
   };
+
+  // ==========================================
+  // FCM REGISTRATION & FOREGROUND LISTENERS
+  // ==========================================
+  
+  // Register FCM Token for logged-in user
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+
+    const registerFcmToken = async () => {
+      try {
+        const { messaging, hasFirebaseCredentials } = await import('./FirebaseConfig');
+        if (!hasFirebaseCredentials() || !messaging) return;
+
+        // Request permission
+        if (Notification.permission === 'default') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+            console.log('[FCM] Notification permission denied');
+            return;
+          }
+        }
+
+        // Register dynamic Service Worker
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('[FCM] Service Worker registered successfully:', registration);
+
+        const { getToken } = await import('firebase/messaging');
+        const token = await getToken(messaging, {
+          serviceWorkerRegistration: registration
+        });
+        
+        if (token) {
+          console.log('[FCM] Token retrieved:', token);
+          const existingTokens = user.fcmTokens || [];
+          if (!existingTokens.includes(token)) {
+            const updatedTokens = [...existingTokens, token];
+            await updateProfile({ fcmTokens: updatedTokens });
+          }
+        }
+      } catch (err) {
+        console.error('[FCM] Failed to register FCM token:', err);
+      }
+    };
+
+    const timer = setTimeout(registerFcmToken, 3000);
+    return () => clearTimeout(timer);
+  }, [user]);
+
+  // Listen to foreground FCM messages
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+
+    let unsub: (() => void) | undefined;
+    const listenForeground = async () => {
+      try {
+        const { messaging, hasFirebaseCredentials } = await import('./FirebaseConfig');
+        if (!hasFirebaseCredentials() || !messaging) return;
+
+        const { onMessage } = await import('firebase/messaging');
+        unsub = onMessage(messaging, (payload) => {
+          console.log('[FCM] Foreground message received:', payload);
+          if (payload.notification?.title && payload.notification?.body) {
+            addNotification(
+              user.uid,
+              payload.notification.title,
+              payload.notification.body
+            );
+          }
+        });
+      } catch (err) {
+        console.error('[FCM] Failed to listen to foreground messages:', err);
+      }
+    };
+
+    listenForeground();
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [user]);
 
   return (
     <AppContext.Provider

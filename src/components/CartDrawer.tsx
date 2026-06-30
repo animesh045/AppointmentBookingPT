@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useApp } from '@/context/AppContext';
+import { useApp, Order } from '@/context/AppContext';
 import { X, Trash2, ShoppingBag, CreditCard, Compass, CheckCircle } from 'lucide-react';
 
 interface CartDrawerProps {
@@ -14,7 +14,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
   const [address, setAddress] = useState('');
   const [fastBooking, setFastBooking] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState<any>(null);
+  const [orderSuccess, setOrderSuccess] = useState<Order | null>(null);
 
   if (!isOpen) return null;
 
@@ -35,8 +35,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
       setOrderSuccess(newOrder);
       setAddress('');
       setFastBooking(false);
-    } catch (err: any) {
-      alert(err.message || 'Checkout failed');
+    } catch (err) {
+      if (err instanceof Error) {
+        alert(err.message || 'Checkout failed');
+      } else {
+        alert('Checkout failed');
+      }
     } finally {
       setCheckingOut(false);
     }

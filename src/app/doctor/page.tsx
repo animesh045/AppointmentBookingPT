@@ -22,6 +22,80 @@ import {
   Trash2
 } from 'lucide-react';
 
+export const parseAppointmentDateTime = (dateStr: string, slotStr: string): Date => {
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return new Date();
+    const [year, month, day] = parts.map(Number);
+    let hours = 9;
+    let minutes = 0;
+    if (slotStr) {
+      const match = slotStr.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        minutes = parseInt(match[2], 10);
+        const modifier = match[3].toUpperCase();
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+      }
+    }
+    return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  } catch (e) {
+    return new Date(dateStr);
+  }
+};
+
+const getMeetingTimeInfo = (dateStr: string, slotStr: string) => {
+  const now = new Date();
+  const apptTime = parseAppointmentDateTime(dateStr, slotStr);
+  const diffMs = apptTime.getTime() - now.getTime();
+  
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const isAptToday = dateStr === today;
+  const isPast = !isAptToday && apptTime.getTime() < now.getTime();
+  const isUpcoming = !isAptToday && apptTime.getTime() > now.getTime();
+
+  // Live 2 hours before the schedule
+  const twoHoursMs = 2 * 60 * 60 * 1000;
+  const isLive = isAptToday && (diffMs <= twoHoursMs);
+
+  return {
+    isLive,
+    isAptToday,
+    isUpcoming,
+    isPast,
+    diffMs,
+    apptTime
+  };
+};
+
+const getTimerText = (diffMs: number) => {
+  const liveTimeMs = diffMs - (2 * 60 * 60 * 1000); // Time until 2 hours before appt
+  if (liveTimeMs <= 0) {
+    return "Live soon";
+  }
+  const totalMinutes = Math.floor(liveTimeMs / (60 * 1000));
+  const totalHours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(totalHours / 24);
+
+  if (days > 0) {
+    const remainingHours = totalHours % 24;
+    return `Live in ${days}d ${remainingHours}h`;
+  } else {
+    const minutes = totalMinutes % 60;
+    return `Live in ${totalHours}h ${minutes}m`;
+  }
+};
+
+interface PrescribedItem {
+  name: string;
+  qtyValue: string;
+  qtyUnit: string;
+  frequency: string;
+  foodTiming: string;
+  mealTiming?: string;
+}
+
 export default function DoctorDashboard() {
   const { user, appointments, updateAppointmentStatus, doctors, updateDoctor, medicines } = useApp();
   const router = useRouter();
@@ -33,33 +107,26 @@ export default function DoctorDashboard() {
   const [loading, setLoading] = useState(false);
 
   // Structured prescription states
-  const [prescribedItems, setPrescribedItems] = useState<any[]>([]);
+  const [prescribedItems, setPrescribedItems] = useState<PrescribedItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [medSuggestions, setMedSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [qtyValue, setQtyValue] = useState('1');
   const [qtyUnit, setQtyUnit] = useState<'tablet' | 'ml' | 'spoon'>('tablet');
   const [frequency, setFrequency] = useState<'1' | '2' | '3'>('1');
   const [foodTiming, setFoodTiming] = useState<'before' | 'after'>('after');
   const [mealTiming, setMealTiming] = useState<'breakfast' | 'lunch' | 'dinner'>('breakfast');
 
-  // Search autocomplete effect
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setMedSuggestions([]);
-      return;
-    }
-    const filtered = medicines.filter((m) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setMedSuggestions(filtered);
-  }, [searchQuery, medicines]);
+  // Derived suggestions from search input
+  const suggestions = searchQuery.trim() === '' 
+    ? [] 
+    : medicines.filter((m) => m.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleSelectMed = (name: string) => {
     setSearchQuery(name);
-    setMedSuggestions([]);
+    setShowSuggestions(false);
   };
 
-  const handleAddMedicine = (e: any) => {
+  const handleAddMedicine = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) {
       alert('Please enter or select a medicine name');
@@ -95,8 +162,11 @@ export default function DoctorDashboard() {
 
   useEffect(() => {
     if (doctorProfile) {
-      setEditDays(doctorProfile.availability.days);
-      setEditSlots(doctorProfile.availability.slots);
+      const timer = setTimeout(() => {
+        setEditDays(doctorProfile.availability.days);
+        setEditSlots(doctorProfile.availability.slots);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [doctorProfile]);
 
@@ -195,7 +265,7 @@ export default function DoctorDashboard() {
           </div>
           <div className="flex gap-4 items-center bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl relative text-xs">
             <div>
-              <span className="text-slate-400">Today's Schedule</span>
+              <span className="text-slate-400">Today&apos;s Schedule</span>
               <p className="font-extrabold text-slate-800 dark:text-slate-100 text-sm mt-0.5">{todayApts.filter(a=>a.status === 'approved').length} Active</p>
             </div>
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
@@ -213,7 +283,7 @@ export default function DoctorDashboard() {
           <section className="lg:col-span-7 space-y-4">
             <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Stethoscope className="h-4.5 w-4.5 text-teal-600 dark:text-teal-400" />
-              Today's Consultation Schedule ({todayApts.length})
+              Today&apos;s Consultation Schedule ({todayApts.length})
             </h2>
 
             {todayApts.length === 0 ? (
@@ -287,49 +357,66 @@ export default function DoctorDashboard() {
                           </button>
                         </div>
                       )}
-
                       {/* APPROVED & ACTIVE CONTROLS */}
-                      {apt.status === 'approved' && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => router.push(`/dashboard/chat/${apt.id}`)}
-                            className="py-2 px-4 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/40 border border-teal-200/20 text-teal-600 dark:text-teal-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
-                          >
-                            <MessageSquare className="h-3.5 w-3.5" /> Patient Chat
-                          </button>
+                      {apt.status === 'approved' && (() => {
+                        const timeInfo = getMeetingTimeInfo(apt.date, apt.timeSlot);
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            {timeInfo.isPast ? (
+                              <button
+                                disabled
+                                className="py-2 px-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-50"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" /> Chat Disabled
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => router.push(`/dashboard/chat/${apt.id}`)}
+                                className="py-2 px-4 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/40 border border-teal-200/20 text-teal-600 dark:text-teal-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" /> Patient Chat
+                              </button>
+                            )}
 
-                          {apt.meetingLink ? (
-                            <a
-                              href={apt.meetingLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="py-2 px-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all"
+                            {timeInfo.isLive ? (
+                              apt.meetingLink ? (
+                                <a
+                                  href={apt.meetingLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="py-2 px-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all"
+                                >
+                                  <Video className="h-3.5 w-3.5" /> Join Meet Video
+                                </a>
+                              ) : (
+                                <span className="py-2 px-3 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-400 rounded-xl flex items-center">
+                                  No meeting link assigned
+                                </span>
+                              )
+                            ) : (timeInfo.isUpcoming || (timeInfo.isAptToday && !timeInfo.isLive)) ? (
+                              <span className="py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[10px] font-bold flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5" /> {getTimerText(timeInfo.diffMs)}
+                              </span>
+                            ) : null}
+
+                            <button
+                              onClick={() => handleOpenPrescriptionWriter(apt)}
+                              className="py-2 px-4 bg-slate-900 dark:bg-white text-slate-100 dark:text-slate-950 rounded-xl text-xs font-bold transition-all shadow hover:scale-[1.01]"
                             >
-                              <Video className="h-3.5 w-3.5" /> Join Meet Video
-                            </a>
-                          ) : (
-                            <span className="py-2 px-3 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-400 rounded-xl flex items-center">
-                              No meeting link assigned
-                            </span>
-                          )}
-
-                          <button
-                            onClick={() => handleOpenPrescriptionWriter(apt)}
-                            className="py-2 px-4 bg-slate-900 dark:bg-white text-slate-100 dark:text-slate-950 rounded-xl text-xs font-bold transition-all shadow hover:scale-[1.01]"
-                          >
-                            📝 Complete & Prescribe
-                          </button>
-                        </div>
-                      )}
+                              📝 Complete & Prescribe
+                            </button>
+                          </div>
+                        );
+                      })()}
 
                       {/* COMPLETED STATUS */}
                       {apt.status === 'completed' && (
                         <div className="flex gap-2">
                           <button
-                            onClick={() => router.push(`/dashboard/chat/${apt.id}`)}
-                            className="py-2 px-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                            disabled
+                            className="py-2 px-3 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed opacity-50"
                           >
-                            <MessageSquare className="h-3.5 w-3.5" /> Chat Archive
+                            <MessageSquare className="h-3.5 w-3.5" /> Chat Disabled
                           </button>
                           <button
                             onClick={() => handleOpenPrescriptionWriter(apt)}
@@ -591,14 +678,17 @@ export default function DoctorDashboard() {
                         type="text"
                         placeholder="Type to search (e.g. Paracetamol, Lipitor...)"
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowSuggestions(true);
+                        }}
                         className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-550"
                       />
                       
                       {/* Suggestion list */}
-                      {medSuggestions.length > 0 && (
+                      {showSuggestions && suggestions.length > 0 && (
                         <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-[110] text-[11px]">
-                          {medSuggestions.map((m) => (
+                          {suggestions.map((m) => (
                             <div
                               key={m.id}
                               onClick={() => handleSelectMed(m.name)}
@@ -627,7 +717,7 @@ export default function DoctorDashboard() {
                             <button
                               key={unit}
                               type="button"
-                              onClick={() => setQtyUnit(unit as any)}
+                              onClick={() => setQtyUnit(unit as 'tablet' | 'ml' | 'spoon')}
                               className={`flex-1 py-1 px-1 rounded-lg text-[9px] font-bold uppercase transition-all ${
                                 qtyUnit === unit
                                   ? 'bg-teal-500 text-white dark:bg-teal-600 shadow'
@@ -649,7 +739,7 @@ export default function DoctorDashboard() {
                           <button
                             key={freq}
                             type="button"
-                            onClick={() => setFrequency(freq as any)}
+                            onClick={() => setFrequency(freq as '1' | '2' | '3')}
                             className={`flex-1 py-2 px-2 rounded-xl text-[10px] font-bold border transition-all ${
                               frequency === freq
                                 ? 'bg-teal-500/10 border-teal-500 text-teal-600 dark:text-teal-400'
@@ -670,7 +760,7 @@ export default function DoctorDashboard() {
                           <button
                             key={timing}
                             type="button"
-                            onClick={() => setFoodTiming(timing as any)}
+                            onClick={() => setFoodTiming(timing as 'before' | 'after')}
                             className={`flex-1 py-2 px-2 rounded-xl text-[10px] font-bold border transition-all ${
                               foodTiming === timing
                                 ? 'bg-teal-500/10 border-teal-500 text-teal-600 dark:text-teal-400'
@@ -693,7 +783,7 @@ export default function DoctorDashboard() {
                           <button
                             key={meal}
                             type="button"
-                            onClick={() => setMealTiming(meal as any)}
+                            onClick={() => setMealTiming(meal as 'breakfast' | 'lunch' | 'dinner')}
                             className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold border transition-all ${
                               mealTiming === meal
                                 ? 'bg-teal-550/20 border-teal-500 text-teal-650 dark:text-teal-400 font-extrabold'

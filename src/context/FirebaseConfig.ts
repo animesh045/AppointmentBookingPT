@@ -1,6 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import type { FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import type { Auth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import type { Firestore } from 'firebase/firestore';
+import type { Messaging } from 'firebase/messaging';
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
@@ -23,10 +27,10 @@ export const isDevMode = (): boolean => {
   return process.env.NODE_ENV === 'development' || true;
 };
 
-let app: any = null;
-let auth: any = null;
-let db: any = null;
-let messaging: any = null;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let messaging: Messaging | null = null;
 
 if (typeof window !== 'undefined' && hasFirebaseCredentials()) {
   try {
@@ -38,7 +42,7 @@ if (typeof window !== 'undefined' && hasFirebaseCredentials()) {
     import('firebase/messaging').then(({ getMessaging, isSupported }) => {
       isSupported().then((supported) => {
         if (supported) {
-          messaging = getMessaging(app);
+          messaging = getMessaging(app!);
         }
       }).catch(err => console.error('FCM support check failed:', err));
     }).catch(err => console.error('FCM import failed:', err));

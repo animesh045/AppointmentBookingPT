@@ -66,56 +66,10 @@ export default function ClinicalChatRoom() {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
+    if (apt.status === 'completed' || apt.status === 'rejected') return;
 
     sendChatMessage(appointmentId, inputText);
     setInputText('');
-
-    // Trigger emulated reply to simulate clinical messaging latency
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      const doctorReplies = [
-        "Thank you for the update. I have logged these details into your consultation history sheet.",
-        "Please make sure to take your prescriptions regularly. Let me know if you experience any side effects.",
-        "I am reviewing your blood reports. The parameters look excellent. Keep up the dietary regulations!",
-        "Yes, that schedule is perfectly fine. Feel free to connect in our scheduled video consultation hour.",
-        "Make sure to keep checking your resting heart rates. Let's touch base again next week."
-      ];
-      
-      const patientReplies = [
-        "Yes doctor, I will follow those instructions exactly.",
-        "Should I continue the Atorvastatin daily, or take it on alternate days?",
-        "I have uploaded my latest lipid profile reports. Please review them at your earliest convenience.",
-        "Thank you doctor for the consultation! I feel much better now.",
-        "What dietary precautions do you recommend for cholesterol management?"
-      ];
-
-      const pool = isDoctorView ? patientReplies : doctorReplies;
-      const randomText = pool[Math.floor(Math.random() * pool.length)];
-
-      // Send mock reply from the other party
-      const senderId = isDoctorView ? apt.patientId : apt.doctorId;
-      const senderName = isDoctorView ? apt.patientName : apt.doctorName;
-
-      const newMsg: ChatMessage = {
-        id: `msg_bot_${Date.now()}`,
-        appointmentId,
-        senderId,
-        senderName,
-        text: randomText,
-        timestamp: new Date().toISOString()
-      };
-
-      // Direct local state bypass injection for high-fidelity response emulations
-      // This immediately appends bot replies in the local storage chats
-      const localChats = localStorage.getItem('ananya_chats');
-      if (localChats) {
-        const chatsList = JSON.parse(localChats);
-        chatsList.push(newMsg);
-        localStorage.setItem('ananya_chats', JSON.stringify(chatsList));
-        window.dispatchEvent(new Event('storage')); // Force AppContext state refresh
-      }
-    }, 2000);
   };
 
   // Simulated Medical Report File Uploader
@@ -247,7 +201,8 @@ export default function ClinicalChatRoom() {
             <button
               type="button"
               onClick={handleSimulateReportUpload}
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-slate-50 transition-all flex-shrink-0"
+              disabled={apt.status === 'completed' || apt.status === 'rejected'}
+              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-slate-50 transition-all flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Upload diagnostic health report PDF"
             >
               <Paperclip className="h-4.5 w-4.5" />
@@ -256,16 +211,17 @@ export default function ClinicalChatRoom() {
             {/* Input field */}
             <input
               type="text"
-              placeholder="Type your medical query or response here..."
+              placeholder={apt.status === 'completed' || apt.status === 'rejected' ? "Chat is disabled for completed consultations." : "Type your medical query or response here..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200/40 dark:border-slate-800/60 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-500"
+              disabled={apt.status === 'completed' || apt.status === 'rejected'}
+              className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200/40 dark:border-slate-800/60 rounded-xl px-4 py-2.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
 
             {/* Send Button */}
             <button
               type="submit"
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || apt.status === 'completed' || apt.status === 'rejected'}
               className="p-2.5 bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-600 hover:to-sky-700 text-white rounded-xl disabled:opacity-40 transition-all flex-shrink-0"
             >
               <Send className="h-4 w-4" />

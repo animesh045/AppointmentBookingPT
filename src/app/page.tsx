@@ -83,7 +83,8 @@ export default function Home() {
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Auth States
@@ -784,7 +785,7 @@ export default function Home() {
                     <label className="text-xs font-bold text-slate-500">{t.gender}</label>
                     <select
                       value={regGender}
-                      onChange={(e: any) => setRegGender(e.target.value)}
+                      onChange={(e) => setRegGender(e.target.value as 'Male' | 'Female' | 'Other')}
                       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none text-xs font-semibold text-slate-900"
                     >
                       <option value="Male">{t.male}</option>

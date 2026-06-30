@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       debugOtp: !smsSent ? otp : undefined,
       message: smsSent ? 'OTP sent successfully' : `Simulated: OTP is ${otp} (Logged to terminal)`
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in send-otp:', error);
     return NextResponse.json(
       { success: false, error: 'Internal Server Error' },

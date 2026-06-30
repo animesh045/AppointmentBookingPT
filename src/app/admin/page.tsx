@@ -56,6 +56,10 @@ export default function AdminPanel() {
   const [cartOpen, setCartOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'doctors' | 'pharmacy' | 'orders' | 'appointments'>('analytics');
 
+  // Reorganized Meeting & Prescription States
+  const [meetingFilter, setMeetingFilter] = useState<'today' | 'upcoming' | 'past'>('today');
+  const [activeViewPrescriptionApt, setActiveViewPrescriptionApt] = useState<Appointment | null>(null);
+
   // Doctor CRUD States
   const [docFormOpen, setDocFormOpen] = useState(false);
   const [editingDocUid, setEditingDocUid] = useState<string | null>(null);
@@ -278,7 +282,7 @@ export default function AdminPanel() {
           <div className="glass-card p-4 rounded-2xl flex flex-col items-center sm:items-start text-center sm:text-left gap-1">
             <Clock className="h-5 w-5 text-indigo-500" />
             <span className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{todayApts.length}</span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Today's List</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Today&apos;s List</span>
           </div>
           <div className="glass-card p-4 rounded-2xl flex flex-col items-center sm:items-start text-center sm:text-left gap-1">
             <DollarSign className="h-5 w-5 text-emerald-500" />
@@ -498,7 +502,7 @@ export default function AdminPanel() {
                         {/* Role selector dropdown */}
                         <select
                           value={u.role}
-                          onChange={(e: any) => changeUserRole(u.uid, e.target.value)}
+                          onChange={(e) => changeUserRole(u.uid, e.target.value as 'consumer' | 'doctor' | 'admin')}
                           className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase text-slate-700 dark:text-slate-200"
                         >
                           <option value="consumer">Patient</option>
@@ -773,138 +777,181 @@ export default function AdminPanel() {
         {/* ==========================================
             TAB VIEW 4: BOOKINGS DISPATCH (APPOINTMENTS APPR & MEETINGS)
             ========================================== */}
-        {activeTab === 'appointments' && (
-          <div className="glass-card p-6 rounded-3xl space-y-5 animate-in fade-in duration-200 text-left">
-            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">Consultation Bookings Queue</h3>
+        {activeTab === 'appointments' && (() => {
+          const todayString = new Date().toISOString().split('T')[0];
+          const filteredAppointments = appointments.filter((apt) => {
+            if (meetingFilter === 'today') {
+              return apt.date === todayString && apt.status !== 'rejected';
+            } else if (meetingFilter === 'upcoming') {
+              return apt.date > todayString && apt.status !== 'completed' && apt.status !== 'rejected';
+            } else {
+              return apt.date < todayString || apt.status === 'completed' || apt.status === 'rejected';
+            }
+          });
 
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold">
-                    <th className="py-3 px-4">Reference</th>
-                    <th className="py-3 px-4">Patient Name</th>
-                    <th className="py-3 px-4">Clinician</th>
-                    <th className="py-3 px-4">Date & Slot</th>
-                    <th className="py-3 px-4">Status / Paid</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {appointments.map((apt) => (
-                    <tr key={apt.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
-                      <td className="py-3.5 px-4 font-mono font-bold">{apt.id}</td>
-                      <td className="py-3.5 px-4">
-                        <p className="font-bold">{apt.patientName}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Mob: {apt.patientMobile}</p>
-                      </td>
-                      <td className="py-3.5 px-4 text-left">
-                        {apt.doctorId === 'pending' ? (
-                          <div className="flex flex-col gap-1 max-w-[150px]">
-                            <span className="text-[9px] text-amber-500 font-extrabold uppercase">⚠️ Assign Doctor</span>
-                            <select
-                              onChange={(e) => assignDoctorToAppointment(apt.id, e.target.value)}
-                              className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:outline-none"
-                              defaultValue=""
-                            >
-                              <option value="" disabled>Choose...</option>
-                              {doctors.map((d: any) => (
-                                <option key={d.uid} value={d.uid}>{d.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-1 max-w-[150px]">
-                            <p className="font-bold">{apt.doctorName}</p>
-                            <p className="text-[10px] text-slate-400">{apt.specialty.split(' ')[0]}</p>
-                            {apt.status !== 'completed' && (
+          return (
+            <div className="glass-card p-6 rounded-3xl space-y-5 animate-in fade-in duration-200 text-left">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">Consultation Bookings Queue</h3>
+                
+                {/* Reorganized Meeting Sub-Tabs */}
+                <div className="flex gap-1 bg-slate-100 dark:bg-slate-850 p-1 rounded-xl border border-slate-200/40 dark:border-slate-800/45 w-max">
+                  {(['today', 'upcoming', 'past'] as const).map((filter) => {
+                    const label = filter === 'today' ? "Today" : filter === 'upcoming' ? "Upcoming" : "Past";
+                    const isActive = meetingFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setMeetingFilter(filter)}
+                        className={`py-1.5 px-3 rounded-lg text-[10px] font-extrabold transition-all uppercase tracking-wider ${
+                          isActive
+                            ? 'bg-purple-650 text-white shadow'
+                            : 'text-slate-500 hover:bg-slate-200/40 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold">
+                      <th className="py-3 px-4">Reference</th>
+                      <th className="py-3 px-4">Patient Name</th>
+                      <th className="py-3 px-4">Clinician</th>
+                      <th className="py-3 px-4">Date & Slot</th>
+                      <th className="py-3 px-4">Status / Paid</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredAppointments.map((apt) => (
+                      <tr key={apt.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                        <td className="py-3.5 px-4 font-mono font-bold">{apt.id}</td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-bold">{apt.patientName}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Mob: {apt.patientMobile}</p>
+                        </td>
+                        <td className="py-3.5 px-4 text-left">
+                          {apt.doctorId === 'pending' ? (
+                            <div className="flex flex-col gap-1 max-w-[150px]">
+                              <span className="text-[9px] text-amber-500 font-extrabold uppercase">⚠️ Assign Doctor</span>
                               <select
                                 onChange={(e) => assignDoctorToAppointment(apt.id, e.target.value)}
-                                className="bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-750 px-1 py-0.5 rounded text-[9px] text-slate-500 focus:outline-none font-bold"
-                                value={apt.doctorId}
+                                className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:outline-none"
+                                defaultValue=""
                               >
-                                {doctors.map((d: any) => (
+                                <option value="" disabled>Choose...</option>
+                                {doctors.map((d) => (
                                   <option key={d.uid} value={d.uid}>{d.name}</option>
                                 ))}
                               </select>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <p className="font-bold">{apt.date}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{apt.timeSlot}</p>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col gap-1">
-                          <span className={`px-2 py-0.5 rounded-full font-bold text-[8px] uppercase w-max ${
-                            apt.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400' :
-                            apt.status === 'completed' ? 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400' :
-                            apt.status === 'rejected' ? 'bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400' :
-                            'bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
-                          }`}>
-                            {apt.status}
-                          </span>
-                          <span className={`text-[9px] font-bold ${apt.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            {apt.paymentStatus === 'paid' ? '💳 Settle Paid' : '💵 Pending Fee'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {apt.status === 'pending' && (
-                            <>
-                              <button
-                                onClick={() => updateAppointmentStatus(apt.id, 'rejected')}
-                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-red-500 rounded"
-                                title="Reject Appointment"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => updateAppointmentStatus(apt.id, 'approved')}
-                                disabled={apt.doctorId === 'pending'}
-                                className={`p-1 rounded ${apt.doctorId === 'pending' ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-500'}`}
-                                title={apt.doctorId === 'pending' ? 'Assign doctor first' : 'Approve Appointment'}
-                              >
-                                <Check className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
-                          {apt.status === 'approved' && (
-                            <button
-                              onClick={() => handleAssignMeeting(apt.id)}
-                              className="py-1 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-[10px] flex items-center gap-1 transition-all"
-                              title="Assign simulated Zoom Meet Room link"
-                            >
-                              <Video className="h-3 w-3" />
-                              {apt.meetingLink ? 'Re-assign Meet' : 'Assign Meet'}
-                            </button>
-                          )}
-                          {apt.status === 'completed' && (
-                            <div className="flex items-center gap-1.5 justify-end">
-                              {!apt.prescriptionReleased ? (
-                                <button
-                                  onClick={() => updateAppointmentStatus(apt.id, 'completed', undefined, undefined, { prescriptionReleased: true })}
-                                  className="py-1 px-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-750 text-white rounded text-[9px] font-bold flex items-center gap-1 transition-all shadow"
-                                  title="Release prescription to patient"
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1 max-w-[150px]">
+                              <p className="font-bold">{apt.doctorName}</p>
+                              <p className="text-[10px] text-slate-400">{apt.specialty.split(' ')[0]}</p>
+                              {apt.status !== 'completed' && (
+                                <select
+                                  onChange={(e) => assignDoctorToAppointment(apt.id, e.target.value)}
+                                  className="bg-slate-50 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-750 px-1 py-0.5 rounded text-[9px] text-slate-500 focus:outline-none font-bold"
+                                  value={apt.doctorId}
                                 >
-                                  🔓 Release Rx
-                                </button>
-                              ) : (
-                                <span className="text-[10px] text-emerald-500 font-extrabold">✓ Rx Released</span>
+                                  {doctors.map((d) => (
+                                    <option key={d.uid} value={d.uid}>{d.name}</option>
+                                  ))}
+                                </select>
                               )}
-                              <span className="text-[10px] text-slate-400 font-bold">Archived</span>
                             </div>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-bold">{apt.date}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{apt.timeSlot}</p>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-1">
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[8px] uppercase w-max ${
+                              apt.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400' :
+                              apt.status === 'completed' ? 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400' :
+                              apt.status === 'rejected' ? 'bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400' :
+                              'bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {apt.status}
+                            </span>
+                            <span className={`text-[9px] font-bold ${apt.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-slate-400'}`}>
+                              {apt.paymentStatus === 'paid' ? '💳 Settle Paid' : '💵 Pending Fee'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {apt.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => updateAppointmentStatus(apt.id, 'rejected')}
+                                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 text-red-500 rounded"
+                                  title="Reject Appointment"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => updateAppointmentStatus(apt.id, 'approved')}
+                                  disabled={apt.doctorId === 'pending'}
+                                  className={`p-1 rounded ${apt.doctorId === 'pending' ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-500'}`}
+                                  title={apt.doctorId === 'pending' ? 'Assign doctor first' : 'Approve Appointment'}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                            {apt.status === 'approved' && meetingFilter !== 'past' && (
+                              <button
+                                onClick={() => handleAssignMeeting(apt.id)}
+                                className="py-1 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-[10px] flex items-center gap-1 transition-all"
+                                title="Assign simulated Zoom Meet Room link"
+                              >
+                                <Video className="h-3 w-3" />
+                                {apt.meetingLink ? 'Re-assign Meet' : 'Assign Meet'}
+                              </button>
+                            )}
+                            {apt.status === 'completed' && (
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <button
+                                  onClick={() => setActiveViewPrescriptionApt(apt)}
+                                  className="py-1 px-2 bg-purple-550/10 hover:bg-purple-600/20 text-purple-600 dark:text-purple-400 font-bold rounded text-[9px] transition-all"
+                                  title="View Prescription Details"
+                                >
+                                  👁️ View Rx
+                                </button>
+                                {!apt.prescriptionReleased ? (
+                                  <button
+                                    onClick={() => updateAppointmentStatus(apt.id, 'completed', undefined, undefined, { prescriptionReleased: true })}
+                                    className="py-1 px-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-750 text-white rounded text-[9px] font-bold flex items-center gap-1 transition-all shadow"
+                                    title="Release prescription to patient"
+                                  >
+                                    🔓 Release Rx
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-emerald-500 font-extrabold">✓ Rx Released</span>
+                                )}
+                                <span className="text-[10px] text-slate-400 font-bold">Archived</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ==========================================
             TAB VIEW 5: MEDICINE STOCK INVENTORY CRUD
@@ -1011,7 +1058,7 @@ export default function AdminPanel() {
                       className="h-4 w-4 border-slate-300 rounded text-purple-600 focus:ring-purple-500"
                     />
                     <label htmlFor="rxToggle" className="font-bold text-slate-700 dark:text-slate-300">
-                      🚨 Requires Doctor's Prescription (Rx Warning Badge)
+                      🚨 Requires Doctor&apos;s Prescription (Rx Warning Badge)
                     </label>
                   </div>
                 </div>
@@ -1192,6 +1239,65 @@ export default function AdminPanel() {
         )}
 
       </main>
+
+      {/* ==========================================
+          REAL-TIME PRESCRIPTION VIEWER OVERLAY (ADMIN VIEW)
+          ========================================== */}
+      {activeViewPrescriptionApt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-1.5">
+                <ClipboardList className="h-5 w-5 text-purple-450 animate-pulse" /> 
+                Clinical Prescription Record
+              </h3>
+              <button
+                onClick={() => setActiveViewPrescriptionApt(null)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Doctor Details Summary Box */}
+              <div className="flex items-center gap-3 p-3 bg-slate-950/50 border border-slate-800 rounded-2xl text-xs text-slate-300">
+                <div className="h-10 w-10 bg-purple-950/40 text-purple-450 flex items-center justify-center rounded-xl font-bold border border-purple-900/50">
+                  🩺
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">{activeViewPrescriptionApt.doctorName}</h4>
+                  <p className="text-[10px] text-slate-400">{activeViewPrescriptionApt.specialty}</p>
+                </div>
+                <div className="ml-auto text-right text-[10px] text-slate-500">
+                  <p>Date: {activeViewPrescriptionApt.date}</p>
+                  <p className="font-mono mt-0.5">{activeViewPrescriptionApt.id}</p>
+                </div>
+              </div>
+
+              {/* Prescription Body Text Box */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-bold text-slate-450">Clinical Directives & Prescriptions:</span>
+                <div className="w-full p-4 rounded-xl border border-slate-800 bg-slate-950/30 text-xs font-mono leading-relaxed whitespace-pre-wrap min-h-[150px] text-slate-350 select-text">
+                  {activeViewPrescriptionApt.notes || "No custom diagnostic notes recorded by doctor yet."}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2 text-xs">
+                <button
+                  onClick={() => setActiveViewPrescriptionApt(null)}
+                  className="py-2.5 px-4 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
