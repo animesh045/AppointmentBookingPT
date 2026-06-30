@@ -450,6 +450,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (defaultDoctor) {
               setDoc(doc(db, 'users', defaultDoctor.uid), defaultDoctor);
             }
+          } else if (docs[doctorIdx].role !== 'doctor' || docs[doctorIdx].passcode !== '1234') {
+            const revisedDoctor = { ...docs[doctorIdx], role: 'doctor' as const, passcode: '1234' };
+            setDoc(doc(db, 'users', revisedDoctor.uid), revisedDoctor);
           }
 
           setUsers(docs);
@@ -688,6 +691,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             parsed.push(defaultDoctor);
             localStorage.setItem('ananya_users', JSON.stringify(parsed));
           }
+        } else if (parsed[doctorIndex].role !== 'doctor' || parsed[doctorIndex].passcode !== '1234') {
+          parsed[doctorIndex].role = 'doctor';
+          parsed[doctorIndex].passcode = '1234';
+          localStorage.setItem('ananya_users', JSON.stringify(parsed));
         }
         setUsers(parsed);
       } else {
@@ -1034,6 +1041,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUser(adminUser);
       syncStorage('ananya_session', adminUser);
       createLog('User Login', `Logged in via mobile ${mobile}`, adminUser.uid, adminUser.name);
+      return true;
+    }
+
+    // Intercept/force doctor credentials and role to ensure stale local storage behaves correctly
+    if (mobile === '8888888888') {
+      let doctorUser = activeUsers.find((u) => u.mobile === '8888888888');
+      const expectedPasscode = doctorUser ? doctorUser.passcode : '1234';
+      if (passcode !== expectedPasscode) {
+        alert('Incorrect 4-digit Passcode (PIN). Please try again.');
+        return false;
+      }
+      if (!doctorUser || doctorUser.role !== 'doctor' || doctorUser.passcode !== '1234') {
+        const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888') || {
+          uid: 'doc_ananya',
+          name: 'Dr. Ananya Sharma',
+          mobile: '8888888888',
+          passcode: '1234',
+          email: 'ananya.sharma@ananya.com',
+          address: 'Max Super Speciality Clinic, Saket, Delhi',
+          gender: 'Female' as const,
+          age: 41,
+          role: 'doctor' as const,
+          status: 'active' as const,
+          createdAt: new Date().toISOString()
+        };
+        doctorUser = {
+          ...defaultDoctor,
+          role: 'doctor',
+          passcode: '1234',
+          status: 'active'
+        };
+        
+        syncDoc('users', doctorUser.uid, doctorUser);
+        
+        const otherUsers = activeUsers.filter(u => u.mobile !== '8888888888');
+        const updatedUsers = [...otherUsers, doctorUser];
+        setUsers(updatedUsers);
+        syncStorage('ananya_users', updatedUsers);
+        activeUsers = updatedUsers;
+      }
+      setUser(doctorUser);
+      syncStorage('ananya_session', doctorUser);
+      createLog('User Login', `Logged in via mobile ${mobile}`, doctorUser.uid, doctorUser.name);
       return true;
     }
 
