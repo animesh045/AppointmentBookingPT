@@ -545,6 +545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as UserProfile);
         setUsers(docs);
+        localStorage.setItem('ananya_users', JSON.stringify(docs));
 
         // Sync current logged-in user if they exist in the new docs
         const currentLoggedIn = userRef.current;
@@ -561,12 +562,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const unsubDoctors = onSnapshot(collection(db, 'doctors'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as DoctorProfile);
         setDoctors(docs);
+        localStorage.setItem('ananya_doctors', JSON.stringify(docs));
       });
 
       // 3. Listen to medicines
       const unsubMedicines = onSnapshot(collection(db, 'medicines'), (snapshot) => {
         const docs = snapshot.docs.map(doc => doc.data() as Medicine);
         setMedicines(docs);
+        localStorage.setItem('ananya_medicines', JSON.stringify(docs));
       });
 
       // 4. Listen to appointments
@@ -574,6 +577,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const docs = snapshot.docs.map(doc => doc.data() as Appointment);
         docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setAppointments(docs);
+        localStorage.setItem('ananya_appointments', JSON.stringify(docs));
       });
 
       // 5. Listen to orders
@@ -581,6 +585,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const docs = snapshot.docs.map(doc => doc.data() as Order);
         docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setOrders(docs);
+        localStorage.setItem('ananya_orders', JSON.stringify(docs));
       });
 
       // 6. Listen to chatMessages
@@ -588,6 +593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const docs = snapshot.docs.map(doc => doc.data() as ChatMessage);
         docs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
         setChatMessages(docs);
+        localStorage.setItem('ananya_chats', JSON.stringify(docs));
       });
 
       // 7. Listen to notifications
@@ -595,6 +601,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const docs = snapshot.docs.map(doc => doc.data() as Notification);
         docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setNotifications(docs);
+        localStorage.setItem('ananya_notifications', JSON.stringify(docs));
       });
 
       // 8. Listen to auditLogs
@@ -602,6 +609,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const docs = snapshot.docs.map(doc => doc.data() as AuditLog);
         docs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setAuditLogs(docs);
+        localStorage.setItem('ananya_logs', JSON.stringify(docs));
       });
 
       return () => {
@@ -1084,22 +1092,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (targetUser) {
       const revisedUser = { ...targetUser, ...profileData };
       const dbSaved = await syncDoc('users', uid, revisedUser);
-      if (!dbSaved) {
-        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
-        setUsers(updated);
-        syncStorage('ananya_users', updated);
-      }
       
-      if (targetUser.role === 'doctor') {
+      // Always update local state and localStorage immediately to prevent stale data
+      const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+      setUsers(updated);
+      syncStorage('ananya_users', updated);
+      
+      // If they are a doctor (or newly promoted to doctor), update or create DoctorProfile
+      if (profileData.role === 'doctor' || targetUser.role === 'doctor') {
         const targetDoc = doctors.find((d) => d.uid === uid);
         if (targetDoc) {
           const revisedDoc = { ...targetDoc, name: profileData.name || targetDoc.name };
           await syncDoc('doctors', uid, revisedDoc);
-          if (!dbSaved) {
-            const updatedDocs = doctors.map((d) => (d.uid === uid ? revisedDoc : d));
-            setDoctors(updatedDocs);
-            syncStorage('ananya_doctors', updatedDocs);
-          }
+          const updatedDocs = doctors.map((d) => (d.uid === uid ? revisedDoc : d));
+          setDoctors(updatedDocs);
+          syncStorage('ananya_doctors', updatedDocs);
+        } else if (profileData.role === 'doctor') {
+          // Create new DoctorProfile if it doesn't exist
+          const newDoc: DoctorProfile = {
+            uid: uid,
+            name: revisedUser.name || 'Dr. Practitioner',
+            specialty: 'General Medicine',
+            fees: 500,
+            availability: {
+              days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+              slots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM']
+            },
+            profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
+            rating: 5.0
+          };
+          await syncDoc('doctors', uid, newDoc);
+          const updatedDocs = [...doctors, newDoc];
+          setDoctors(updatedDocs);
+          syncStorage('ananya_doctors', updatedDocs);
         }
       }
 
@@ -1107,6 +1132,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(revisedUser);
         syncStorage('ananya_session', revisedUser);
       }
+      
+      // Dispatch storage update to notify other components/windows
+      window.dispatchEvent(new Event('local-storage-update'));
       
       createLog('Admin User Update', `Admin updated details for user UID: ${uid}`);
     }
