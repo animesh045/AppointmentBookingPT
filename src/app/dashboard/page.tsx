@@ -998,17 +998,17 @@ export default function ConsumerDashboard() {
           ========================================== */}
       {activeViewPrescriptionApt && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
             
             {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-              <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-1.5">
-                <FileText className="h-5 w-5 text-teal-400 animate-pulse" /> 
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800 mb-4">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <FileText className="h-5 w-5 text-teal-500 dark:text-teal-400 animate-pulse" /> 
                 Clinical Prescription Record
               </h3>
               <button
                 onClick={() => setActiveViewPrescriptionApt(null)}
-                className="p-1 rounded-lg text-slate-400 hover:bg-slate-800"
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <XCircle className="h-5 w-5" />
               </button>
@@ -1016,15 +1016,15 @@ export default function ConsumerDashboard() {
 
             <div className="space-y-4">
               {/* Doctor Details Summary Box */}
-              <div className="flex items-center gap-3 p-3 bg-slate-950/50 border border-slate-800 rounded-2xl text-xs">
-                <div className="h-10 w-10 bg-teal-950/40 text-teal-400 flex items-center justify-center rounded-xl font-bold border border-teal-900/50">
+              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs">
+                <div className="h-10 w-10 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center rounded-xl font-bold border border-teal-100 dark:border-teal-900/50">
                   🩺
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-200">{activeViewPrescriptionApt.doctorName}</h4>
-                  <p className="text-[10px] text-slate-400">{activeViewPrescriptionApt.specialty}</p>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{activeViewPrescriptionApt.doctorName}</h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{activeViewPrescriptionApt.specialty}</p>
                 </div>
-                <div className="ml-auto text-right text-[10px] text-slate-500">
+                <div className="ml-auto text-right text-[10px] text-slate-400 dark:text-slate-500">
                   <p>Date: {activeViewPrescriptionApt.date}</p>
                   <p className="font-mono mt-0.5">{activeViewPrescriptionApt.id}</p>
                 </div>
@@ -1032,17 +1032,17 @@ export default function ConsumerDashboard() {
 
               {/* Prescription Body Text Box */}
               <div className="space-y-1.5">
-                <span className="text-xs font-bold text-slate-400">Clinical Directives & Prescriptions:</span>
-                <div className="w-full p-4 rounded-xl border border-slate-800 bg-slate-950/30 text-xs font-mono leading-relaxed whitespace-pre-wrap min-h-[150px] text-slate-350 select-text">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Clinical Directives & Prescriptions:</span>
+                <div className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-955/30 text-xs font-mono leading-relaxed whitespace-pre-wrap min-h-[150px] text-slate-800 dark:text-slate-300 select-text">
                   {activeViewPrescriptionApt.notes || "No custom diagnostic notes recorded by doctor yet."}
                 </div>
               </div>
 
               {/* Actions Footer */}
-              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2 text-xs">
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 text-xs">
                 <button
                   onClick={() => setActiveViewPrescriptionApt(null)}
-                  className="py-2.5 px-4 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl"
+                  className="py-2.5 px-4 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl"
                 >
                   Close
                 </button>
