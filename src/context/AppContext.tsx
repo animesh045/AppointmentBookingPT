@@ -207,7 +207,32 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // PRE-POPULATED DEFAULT DUMMY DATA
 // ==========================================
 
-const DEFAULT_DOCTORS: DoctorProfile[] = [];
+const DEFAULT_DOCTORS: DoctorProfile[] = [
+  {
+    uid: 'doc_ananya',
+    name: 'Dr. Ananya Sharma',
+    specialty: 'Pediatrics & General Medicine',
+    fees: 600,
+    availability: {
+      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      slots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM']
+    },
+    profilePicture: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
+    rating: 4.9
+  },
+  {
+    uid: 'doc_animesh',
+    name: 'Dr. Animesh',
+    specialty: 'Cardiology & General Medicine',
+    fees: 700,
+    availability: {
+      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'],
+      slots: ['10:00 AM', '11:00 AM', '12:00 PM', '03:00 PM', '04:00 PM', '05:00 PM']
+    },
+    profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
+    rating: 5.0
+  }
+];
 
 const DEFAULT_MEDICINES: Medicine[] = [
   {
@@ -275,6 +300,32 @@ const DEFAULT_USERS: UserProfile[] = [
     role: 'admin',
     status: 'active',
     createdAt: new Date().toISOString()
+  },
+  {
+    uid: 'doc_ananya',
+    name: 'Dr. Ananya Sharma',
+    mobile: '8888888888',
+    passcode: '1234',
+    email: 'ananya.sharma@ananya.com',
+    address: 'Max Super Speciality Clinic, Saket, Delhi',
+    gender: 'Female',
+    age: 41,
+    role: 'doctor',
+    status: 'active',
+    createdAt: new Date().toISOString()
+  },
+  {
+    uid: 'doc_animesh',
+    name: 'Dr. Animesh',
+    mobile: '8787878787',
+    passcode: '1234',
+    email: 'animesh@ananya.com',
+    address: 'Ananya Healthcare Complex, Clinic Wing',
+    gender: 'Male',
+    age: 35,
+    role: 'doctor',
+    status: 'active',
+    createdAt: new Date().toISOString()
   }
 ];
 
@@ -299,21 +350,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (localUsers) {
         try {
           const parsed = JSON.parse(localUsers) as UserProfile[];
-          // Ensure the admin user is present and active, but do NOT filter out other users
-          const hasActiveAdmin = parsed.some((u) => u.mobile === '8368825928' && u.role === 'admin' && u.status === 'active');
-          if (!hasActiveAdmin) {
-            const adminIndex = parsed.findIndex((u) => u.mobile === '8368825928');
-            if (adminIndex === -1) {
-              const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-              if (defaultAdmin) parsed.push(defaultAdmin);
+          // Ensure all default users are present and have correct roles/passcodes
+          const updated = [...parsed];
+          DEFAULT_USERS.forEach((defUser) => {
+            const index = updated.findIndex((u) => u.mobile === defUser.mobile);
+            if (index === -1) {
+              updated.push(defUser);
             } else {
-              parsed[adminIndex].role = 'admin';
-              parsed[adminIndex].passcode = '1234';
-              parsed[adminIndex].status = 'active';
+              // Reset role and passcode for default users to guarantee they can always log in
+              updated[index].role = defUser.role;
+              updated[index].passcode = defUser.passcode;
+              updated[index].status = 'active';
             }
-          }
-          localStorage.setItem('ananya_users', JSON.stringify(parsed));
-          return parsed;
+          });
+          localStorage.setItem('ananya_users', JSON.stringify(updated));
+          return updated;
         } catch (e) {
           return DEFAULT_USERS;
         }
@@ -327,9 +378,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [doctors, setDoctors] = useState<DoctorProfile[]>(() => {
     if (typeof window !== 'undefined') {
       const local = localStorage.getItem('ananya_doctors');
-      if (local) return JSON.parse(local);
-      localStorage.setItem('ananya_doctors', JSON.stringify([]));
-      return [];
+      if (local) {
+        try {
+          const parsed = JSON.parse(local) as DoctorProfile[];
+          const updated = [...parsed];
+          DEFAULT_DOCTORS.forEach((defDoc) => {
+            if (!updated.some((d) => d.uid === defDoc.uid)) {
+              updated.push(defDoc);
+            }
+          });
+          localStorage.setItem('ananya_doctors', JSON.stringify(updated));
+          return updated;
+        } catch (e) {
+          return DEFAULT_DOCTORS;
+        }
+      }
+      localStorage.setItem('ananya_doctors', JSON.stringify(DEFAULT_DOCTORS));
+      return DEFAULT_DOCTORS;
     }
     return [];
   });
@@ -712,6 +777,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncDoc('users', doctorUser.uid, doctorUser);
         
         const otherUsers = activeUsers.filter(u => u.mobile !== '8888888888');
+        const updatedUsers = [...otherUsers, doctorUser];
+        setUsers(updatedUsers);
+        syncStorage('ananya_users', updatedUsers);
+        activeUsers = updatedUsers;
+      }
+      setUser(doctorUser);
+      syncStorage('ananya_session', doctorUser);
+      createLog('User Login', `Logged in via mobile ${mobile}`, doctorUser.uid, doctorUser.name);
+      return true;
+    }
+
+    // Intercept/force doctor credentials and role for Dr. Animesh
+    if (mobile === '8787878787') {
+      let doctorUser = activeUsers.find((u) => u.mobile === '8787878787');
+      const expectedPasscode = doctorUser ? doctorUser.passcode : '1234';
+      if (passcode !== expectedPasscode) {
+        alert('Incorrect 4-digit Passcode (PIN). Please try again.');
+        return false;
+      }
+      if (!doctorUser || doctorUser.role !== 'doctor' || doctorUser.passcode !== '1234') {
+        const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8787878787') || {
+          uid: 'doc_animesh',
+          name: 'Dr. Animesh',
+          mobile: '8787878787',
+          passcode: '1234',
+          email: 'animesh@ananya.com',
+          address: 'Ananya Healthcare Complex, Clinic Wing',
+          gender: 'Male' as const,
+          age: 35,
+          role: 'doctor' as const,
+          status: 'active' as const,
+          createdAt: new Date().toISOString()
+        };
+        doctorUser = {
+          ...defaultDoctor,
+          role: 'doctor',
+          passcode: '1234',
+          status: 'active'
+        };
+        
+        syncDoc('users', doctorUser.uid, doctorUser);
+        
+        const otherUsers = activeUsers.filter(u => u.mobile !== '8787878787');
         const updatedUsers = [...otherUsers, doctorUser];
         setUsers(updatedUsers);
         syncStorage('ananya_users', updatedUsers);

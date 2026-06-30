@@ -151,7 +151,7 @@ export default function AdminLogin() {
                 />
               </div>
               <p className="text-[10px] text-slate-500 mt-1">
-                Admin Demo Mobile: 8368825928, PIN: 1234 | Doctor Demo Mobile: 8888888888, PIN: 1234
+                Admin Demo Mobile: 8368825928, PIN: 1234 | Doctor Demo Mobile: 8888888888 / 8787878787, PIN: 1234
               </p>
             </div>
 
