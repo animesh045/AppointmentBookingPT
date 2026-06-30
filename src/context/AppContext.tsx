@@ -357,6 +357,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Local Session
   const [user, setUser] = useState<UserProfile | null>(null);
+  const userRef = React.useRef<UserProfile | null>(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [language, setLanguageState] = useState<'en' | 'hi'>('en');
 
@@ -414,16 +419,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await setDoc(doc(db, 'users', u.uid), u);
           });
         } else {
-          // Check if admin is in the database and has correct role/passcode
-          const adminIdx = docs.findIndex((u) => u.mobile === '8368825928');
-          if (adminIdx === -1) {
-            const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-            if (defaultAdmin) {
-              setDoc(doc(db, 'users', defaultAdmin.uid), defaultAdmin);
+          // Check if any active admin is in the database
+          const hasActiveAdmin = docs.some((u) => u.role === 'admin' && u.status === 'active');
+          if (!hasActiveAdmin) {
+            const adminIdx = docs.findIndex((u) => u.mobile === '8368825928');
+            if (adminIdx === -1) {
+              const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
+              if (defaultAdmin) {
+                setDoc(doc(db, 'users', defaultAdmin.uid), defaultAdmin);
+              }
+            } else if (docs[adminIdx].role !== 'admin' || docs[adminIdx].passcode !== '1234') {
+              const revisedAdmin = { ...docs[adminIdx], role: 'admin' as const, passcode: '1234' };
+              setDoc(doc(db, 'users', revisedAdmin.uid), revisedAdmin);
             }
-          } else if (docs[adminIdx].role !== 'admin' || docs[adminIdx].passcode !== '1234') {
-            const revisedAdmin = { ...docs[adminIdx], role: 'admin' as const, passcode: '1234' };
-            setDoc(doc(db, 'users', revisedAdmin.uid), revisedAdmin);
           }
 
           // Check if default doctor is in the database and has correct role/passcode
@@ -436,6 +444,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           setUsers(docs);
+
+          // Sync current logged-in user if they exist in the new docs
+          const currentLoggedIn = userRef.current;
+          if (currentLoggedIn) {
+            const freshUser = docs.find(u => u.uid === currentLoggedIn.uid);
+            if (freshUser && (freshUser.role !== currentLoggedIn.role || freshUser.status !== currentLoggedIn.status || freshUser.name !== currentLoggedIn.name || freshUser.passcode !== currentLoggedIn.passcode)) {
+              setUser(freshUser);
+              localStorage.setItem('ananya_session', JSON.stringify(freshUser));
+            }
+          }
         }
       });
 
@@ -635,19 +653,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const activeSession = localStorage.getItem('ananya_session');
 
       // Seeding users local
+      let parsed = DEFAULT_USERS;
       if (localUsers) {
-        const parsed = JSON.parse(localUsers);
-        const adminIndex = parsed.findIndex((u: any) => u.mobile === '8368825928');
-        if (adminIndex === -1) {
-          const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-          if (defaultAdmin) {
-            parsed.push(defaultAdmin);
+        parsed = JSON.parse(localUsers);
+        const hasActiveAdmin = parsed.some((u: any) => u.role === 'admin' && u.status === 'active');
+        if (!hasActiveAdmin) {
+          const adminIndex = parsed.findIndex((u: any) => u.mobile === '8368825928');
+          if (adminIndex === -1) {
+            const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
+            if (defaultAdmin) {
+              parsed.push(defaultAdmin);
+              localStorage.setItem('ananya_users', JSON.stringify(parsed));
+            }
+          } else if (parsed[adminIndex].role !== 'admin' || parsed[adminIndex].passcode !== '1234') {
+            parsed[adminIndex].role = 'admin';
+            parsed[adminIndex].passcode = '1234';
             localStorage.setItem('ananya_users', JSON.stringify(parsed));
           }
-        } else if (parsed[adminIndex].role !== 'admin' || parsed[adminIndex].passcode !== '1234') {
-          parsed[adminIndex].role = 'admin';
-          parsed[adminIndex].passcode = '1234';
-          localStorage.setItem('ananya_users', JSON.stringify(parsed));
         }
 
         const doctorIndex = parsed.findIndex((u: any) => u.mobile === '8888888888');
@@ -808,7 +830,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const handleStorage = (e: any) => {
       const localUsers = localStorage.getItem('ananya_users');
-      if (localUsers) setUsers(JSON.parse(localUsers));
+      let parsedUsers = DEFAULT_USERS;
+      if (localUsers) {
+        parsedUsers = JSON.parse(localUsers);
+        setUsers(parsedUsers);
+      }
       const localDoctors = localStorage.getItem('ananya_doctors');
       if (localDoctors) setDoctors(JSON.parse(localDoctors));
       const localMedicines = localStorage.getItem('ananya_medicines');
@@ -823,8 +849,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (localNotifications) setNotifications(JSON.parse(localNotifications));
       const localLogs = localStorage.getItem('ananya_logs');
       if (localLogs) setAuditLogs(JSON.parse(localLogs));
+      
       const activeSession = localStorage.getItem('ananya_session');
-      if (activeSession) setUser(JSON.parse(activeSession));
+      if (activeSession) {
+        const sessionUser = JSON.parse(activeSession);
+        const freshUser = parsedUsers.find((u) => u.uid === sessionUser.uid);
+        if (freshUser && (freshUser.role !== sessionUser.role || freshUser.status !== sessionUser.status || freshUser.name !== sessionUser.name || freshUser.passcode !== sessionUser.passcode)) {
+          setUser(freshUser);
+          localStorage.setItem('ananya_session', JSON.stringify(freshUser));
+        } else {
+          setUser(sessionUser);
+        }
+      }
     };
 
     window.addEventListener('storage', handleStorage);
@@ -951,12 +987,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Intercept/force admin credentials and role to ensure stale local storage behaves correctly
     if (mobile === '8368825928') {
-      if (passcode !== '1234') {
+      let adminUser = activeUsers.find((u) => u.mobile === '8368825928');
+      const expectedPasscode = adminUser ? adminUser.passcode : '1234';
+      if (passcode !== expectedPasscode) {
         alert('Incorrect 4-digit Passcode (PIN). Please try again.');
         return false;
       }
-      let adminUser = activeUsers.find((u) => u.mobile === '8368825928');
-      if (!adminUser || adminUser.role !== 'admin' || adminUser.passcode !== '1234') {
+      if (!adminUser) {
         const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928') || {
           uid: 'admin_1',
           name: 'Animesh Gupta (Admin)',
