@@ -69,6 +69,20 @@ export default function AdminPanel() {
   const [docDays, setDocDays] = useState<string[]>(['Monday', 'Wednesday', 'Friday']);
   const [docSlots, setDocSlots] = useState<string[]>(['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM']);
   const [docPic, setDocPic] = useState('https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80');
+  const [docMobile, setDocMobile] = useState('');
+  const [docPasscode, setDocPasscode] = useState('');
+
+  // User Edit States
+  const [userEditOpen, setUserEditOpen] = useState(false);
+  const [editingUserUid, setEditingUserUid] = useState<string | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserMobile, setEditUserMobile] = useState('');
+  const [editUserPasscode, setEditUserPasscode] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'consumer' | 'doctor' | 'admin'>('consumer');
+  const [editUserAge, setEditUserAge] = useState(25);
+  const [editUserGender, setEditUserGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [editUserAddress, setEditUserAddress] = useState('');
 
   // Medicine CRUD States
   const [medFormOpen, setMedFormOpen] = useState(false);
@@ -109,6 +123,8 @@ export default function AdminPanel() {
   const todayApts = appointments.filter(a => a.date === todayString);
   const totalPatients = users.filter(u => u.role === 'consumer').length;
   
+  const { updateUserProfile } = useApp();
+
   // Doctor CRUD logic
   const handleSaveDoctor = (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,12 +142,22 @@ export default function AdminPanel() {
         profilePicture: docPic
       });
     } else {
+      if (!docMobile.trim() || !docPasscode.trim()) {
+        alert('Please fill out Mobile Number and Passcode (PIN)');
+        return;
+      }
+      if (!/^\d{4}$/.test(docPasscode)) {
+        alert('Security PIN must be a 4-digit number');
+        return;
+      }
       addDoctor({
         name: docName,
         specialty: docSpecialty,
         fees: Number(docFees),
         availability: { days: docDays, slots: docSlots },
-        profilePicture: docPic
+        profilePicture: docPic,
+        mobile: docMobile,
+        passcode: docPasscode
       });
     }
 
@@ -141,6 +167,8 @@ export default function AdminPanel() {
     setDocName('');
     setDocSpecialty('');
     setDocFees(500);
+    setDocMobile('');
+    setDocPasscode('');
   };
 
   const handleEditDoctor = (doc: DoctorProfile) => {
@@ -151,7 +179,59 @@ export default function AdminPanel() {
     setDocDays(doc.availability.days);
     setDocSlots(doc.availability.slots);
     setDocPic(doc.profilePicture);
+    const comp = users.find(u => u.uid === doc.uid);
+    if (comp) {
+      setDocMobile(comp.mobile);
+      setDocPasscode(comp.passcode);
+    } else {
+      setDocMobile('');
+      setDocPasscode('');
+    }
     setDocFormOpen(true);
+  };
+
+  // User Edit logic
+  const handleEditUser = (u: UserProfile) => {
+    setEditingUserUid(u.uid);
+    setEditUserName(u.name);
+    setEditUserEmail(u.email || '');
+    setEditUserMobile(u.mobile);
+    setEditUserPasscode(u.passcode);
+    setEditUserRole(u.role);
+    setEditUserAge(u.age || 25);
+    setEditUserGender(u.gender || 'Male');
+    setEditUserAddress(u.address || '');
+    setUserEditOpen(true);
+  };
+
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUserUid) return;
+
+    if (!editUserName.trim() || !editUserMobile.trim() || !editUserPasscode.trim()) {
+      alert('Please fill out Name, Mobile Number, and Passcode');
+      return;
+    }
+
+    if (!/^\d{4}$/.test(editUserPasscode)) {
+      alert('Security PIN must be a 4-digit number');
+      return;
+    }
+
+    await updateUserProfile(editingUserUid, {
+      name: editUserName,
+      email: editUserEmail || undefined,
+      mobile: editUserMobile,
+      passcode: editUserPasscode,
+      role: editUserRole,
+      age: Number(editUserAge),
+      gender: editUserGender,
+      address: editUserAddress
+    });
+
+    setUserEditOpen(false);
+    setEditingUserUid(null);
+    alert('User details updated successfully!');
   };
 
   // Medicine CRUD logic
@@ -518,6 +598,13 @@ export default function AdminPanel() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right space-x-2">
+                        <button
+                          onClick={() => handleEditUser(u)}
+                          className="p-1 text-purple-650 hover:bg-purple-50 dark:hover:bg-purple-950/20 rounded"
+                          title="Edit User Details"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
                         {u.status === 'suspended' ? (
                           <button
                             onClick={() => unsuspendUser(u.uid)}
@@ -621,6 +708,34 @@ export default function AdminPanel() {
                       className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
+
+                  {!editingDocUid && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="text-slate-400 font-bold">Mobile Number *</label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="e.g. 9876543210"
+                          value={docMobile}
+                          onChange={(e) => setDocMobile(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-slate-400 font-bold">Security PIN (4-Digit Passcode) *</label>
+                        <input
+                          type="password"
+                          maxLength={4}
+                          required
+                          placeholder="e.g. 1234"
+                          value={docPasscode}
+                          onChange={(e) => setDocPasscode(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-transparent focus:ring-1 focus:ring-purple-500 font-mono"
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {/* Dynamic Availability Days */}
                   <div className="sm:col-span-2 space-y-2">
@@ -870,8 +985,30 @@ export default function AdminPanel() {
                           )}
                         </td>
                         <td className="py-3.5 px-4">
-                          <p className="font-bold">{apt.date}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{apt.timeSlot}</p>
+                          {apt.status !== 'completed' && apt.status !== 'rejected' ? (
+                            <div className="flex flex-col gap-1 max-w-[140px]">
+                              <input
+                                type="date"
+                                value={apt.date}
+                                onChange={(e) => updateAppointmentStatus(apt.id, apt.status, apt.notes, apt.meetingLink, { date: e.target.value })}
+                                className="bg-slate-555 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold focus:outline-none text-slate-800 dark:text-slate-250"
+                              />
+                              <select
+                                value={apt.timeSlot}
+                                onChange={(e) => updateAppointmentStatus(apt.id, apt.status, apt.notes, apt.meetingLink, { timeSlot: e.target.value })}
+                                className="bg-slate-555 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold focus:outline-none text-slate-800 dark:text-slate-250"
+                              >
+                                {['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'].map((slot) => (
+                                  <option key={slot} value={slot}>{slot}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-bold">{apt.date}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{apt.timeSlot}</p>
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-col gap-1">
@@ -1295,6 +1432,135 @@ export default function AdminPanel() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          REAL-TIME USER PROFILE EDIT OVERLAY (ADMIN VIEW)
+          ========================================== */}
+      {userEditOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 text-left">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+              <h3 className="text-base font-extrabold text-slate-100 flex items-center gap-1.5">
+                <Edit className="h-5 w-5 text-purple-450" /> 
+                Edit User Profile Details
+              </h3>
+              <button
+                onClick={() => setUserEditOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserEdit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editUserName}
+                    onChange={(e) => setEditUserName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Email Address</label>
+                  <input
+                    type="email"
+                    value={editUserEmail}
+                    onChange={(e) => setEditUserEmail(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Mobile Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={editUserMobile}
+                    onChange={(e) => setEditUserMobile(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Security PIN (4-Digit Passcode) *</label>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    required
+                    value={editUserPasscode}
+                    onChange={(e) => setEditUserPasscode(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">User Role *</label>
+                  <select
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value as 'consumer' | 'doctor' | 'admin')}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="consumer">Patient</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Age *</label>
+                  <input
+                    type="number"
+                    required
+                    value={editUserAge}
+                    onChange={(e) => setEditUserAge(Number(e.target.value))}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 font-bold">Gender *</label>
+                  <select
+                    value={editUserGender}
+                    onChange={(e) => setEditUserGender(e.target.value as 'Male' | 'Female' | 'Other')}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-slate-400 font-bold">Residential/Office Address</label>
+                <textarea
+                  rows={2}
+                  value={editUserAddress}
+                  onChange={(e) => setEditUserAddress(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-955 text-slate-200 focus:ring-1 focus:ring-purple-500 resize-none"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setUserEditOpen(false)}
+                  className="py-2.5 px-4 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="py-2.5 px-5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

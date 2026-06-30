@@ -77,6 +77,29 @@ export default function BookAppointment() {
   // Prevent selecting past dates
   const todayString = new Date().toISOString().split('T')[0];
 
+  const isSlotInPast = (dateStr: string, slotStr: string): boolean => {
+    const now = new Date();
+    const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    if (dateStr !== todayStr) return false;
+    
+    const match = slotStr.match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+    if (!match) return false;
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const modifier = match[3].toUpperCase();
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+    
+    const slotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
+    return slotDate.getTime() < now.getTime();
+  };
+
+  useEffect(() => {
+    if (selectedDate && selectedSlot && isSlotInPast(selectedDate, selectedSlot)) {
+      setSelectedSlot('');
+    }
+  }, [selectedDate]);
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors">
       <Navbar onOpenCart={() => setCartOpen(true)} />
@@ -146,14 +169,18 @@ export default function BookAppointment() {
                   </label>
                   <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
                     {DEFAULT_SLOTS.map((slot: string) => {
+                      const isPast = selectedDate ? isSlotInPast(selectedDate, slot) : false;
                       const isPicked = selectedSlot === slot;
                       return (
                         <button
                           key={slot}
                           type="button"
+                          disabled={isPast}
                           onClick={() => setSelectedSlot(slot)}
                           className={`py-2 px-3 border rounded-xl text-[11px] font-bold transition-all text-center ${
-                            isPicked
+                            isPast
+                              ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-550'
+                              : isPicked
                               ? 'border-teal-500 bg-teal-500/10 text-teal-600 dark:text-teal-400'
                               : 'border-slate-150 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350'
                           }`}

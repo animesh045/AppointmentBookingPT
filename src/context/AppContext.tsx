@@ -155,9 +155,10 @@ interface AppContextType {
   unsuspendUser: (uid: string) => void;
   deleteUser: (uid: string) => void;
   changeUserRole: (uid: string, role: 'consumer' | 'doctor' | 'admin') => void;
+  updateUserProfile: (uid: string, profile: Partial<UserProfile>) => Promise<void>;
 
   // Doctors Management
-  addDoctor: (doc: Omit<DoctorProfile, 'uid'>) => void;
+  addDoctor: (doc: Omit<DoctorProfile, 'uid'> & { mobile: string; passcode: string }) => void;
   updateDoctor: (uid: string, doc: Partial<DoctorProfile>) => void;
   deleteDoctor: (uid: string) => void;
 
@@ -960,10 +961,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addNotification(uid, 'Role Level Updated', `Your system privileges changed. New Role: ${role.toUpperCase()}`);
   };
 
+  const updateUserProfile = async (uid: string, profileData: Partial<UserProfile>) => {
+    const targetUser = users.find((u) => u.uid === uid);
+    if (targetUser) {
+      const revisedUser = { ...targetUser, ...profileData };
+      const dbSaved = await syncDoc('users', uid, revisedUser);
+      if (!dbSaved) {
+        const updated = users.map((u) => (u.uid === uid ? revisedUser : u));
+        setUsers(updated);
+        syncStorage('ananya_users', updated);
+      }
+      
+      if (targetUser.role === 'doctor') {
+        const targetDoc = doctors.find((d) => d.uid === uid);
+        if (targetDoc) {
+          const revisedDoc = { ...targetDoc, name: profileData.name || targetDoc.name };
+          await syncDoc('doctors', uid, revisedDoc);
+          if (!dbSaved) {
+            const updatedDocs = doctors.map((d) => (d.uid === uid ? revisedDoc : d));
+            setDoctors(updatedDocs);
+            syncStorage('ananya_doctors', updatedDocs);
+          }
+        }
+      }
+
+      if (user && user.uid === uid) {
+        setUser(revisedUser);
+        syncStorage('ananya_session', revisedUser);
+      }
+      
+      createLog('Admin User Update', `Admin updated details for user UID: ${uid}`);
+    }
+  };
+
   // Doctors
-  const addDoctor = async (doc: Omit<DoctorProfile, 'uid'>) => {
+  const addDoctor = async (doc: Omit<DoctorProfile, 'uid'> & { mobile: string; passcode: string }) => {
     const newUid = `doc_${Date.now()}`;
-    const newDoc: DoctorProfile = { ...doc, uid: newUid, rating: 5.0 };
+    const newDoc: DoctorProfile = {
+      uid: newUid,
+      name: doc.name,
+      specialty: doc.specialty,
+      fees: doc.fees,
+      availability: doc.availability,
+      profilePicture: doc.profilePicture,
+      rating: 5.0
+    };
 
     const dbSaved = await syncDoc('doctors', newUid, newDoc);
     if (!dbSaved) {
@@ -976,8 +1018,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const doctorUser: UserProfile = {
       uid: newUid,
       name: doc.name,
-      mobile: `888888${Math.floor(1000 + Math.random() * 9000)}`, // Generate demo mobile or assign dummy
-      passcode: '1234',
+      mobile: doc.mobile,
+      passcode: doc.passcode,
       address: 'Ananya Healthcare Complex, Clinic Wing',
       gender: 'Other',
       age: 35,
@@ -1535,6 +1577,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsuspendUser,
         deleteUser,
         changeUserRole,
+        updateUserProfile,
         addDoctor,
         updateDoctor,
         deleteDoctor,
