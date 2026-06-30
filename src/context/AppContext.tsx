@@ -206,44 +206,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // PRE-POPULATED DEFAULT DUMMY DATA
 // ==========================================
 
-const DEFAULT_DOCTORS: DoctorProfile[] = [
-  {
-    uid: 'doc_ananya',
-    name: 'Dr. Ananya Sharma',
-    specialty: 'Cardiologist & General Medicine',
-    fees: 600,
-    availability: {
-      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-      slots: ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM']
-    },
-    profilePicture: 'https://images.unsplash.com/photo-1594824813573-246434de83fb?w=150&auto=format&fit=crop&q=80',
-    rating: 4.9
-  },
-  {
-    uid: 'doc_vikram',
-    name: 'Dr. Vikram Malhotra',
-    specialty: 'Pediatrician',
-    fees: 450,
-    availability: {
-      days: ['Monday', 'Wednesday', 'Friday'],
-      slots: ['10:00 AM', '11:30 AM', '01:00 PM', '04:00 PM', '05:00 PM']
-    },
-    profilePicture: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    rating: 4.8
-  },
-  {
-    uid: 'doc_priya',
-    name: 'Dr. Priya Nair',
-    specialty: 'Dermatologist',
-    fees: 500,
-    availability: {
-      days: ['Tuesday', 'Thursday', 'Saturday'],
-      slots: ['09:30 AM', '10:30 AM', '12:00 PM', '03:30 PM', '04:30 PM']
-    },
-    profilePicture: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
-    rating: 4.7
-  }
-];
+const DEFAULT_DOCTORS: DoctorProfile[] = [];
 
 const DEFAULT_MEDICINES: Medicine[] = [
   {
@@ -311,32 +274,6 @@ const DEFAULT_USERS: UserProfile[] = [
     role: 'admin',
     status: 'active',
     createdAt: new Date().toISOString()
-  },
-  {
-    uid: 'doc_ananya',
-    name: 'Dr. Ananya Sharma',
-    mobile: '8888888888',
-    passcode: '1234',
-    email: 'ananya.sharma@ananya.com',
-    address: 'Max Super Speciality Clinic, Saket, Delhi',
-    gender: 'Female',
-    age: 41,
-    role: 'doctor',
-    status: 'active',
-    createdAt: new Date().toISOString()
-  },
-  {
-    uid: 'consumer_demo',
-    name: 'Rahul Sharma (Patient)',
-    mobile: '7777777777',
-    passcode: '1234',
-    email: 'rahul@gmail.com',
-    address: 'Flat 402, Block C, Green Park, New Delhi',
-    gender: 'Male',
-    age: 28,
-    role: 'consumer',
-    status: 'active',
-    createdAt: new Date().toISOString()
   }
 ];
 
@@ -361,26 +298,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (localUsers) {
         try {
           const parsed = JSON.parse(localUsers) as UserProfile[];
-          // Make sure we have admin and doctor seeded
-          const hasActiveAdmin = parsed.some((u) => u.role === 'admin' && u.status === 'active');
+          // Filter out all users except the admin
+          const filtered = parsed.filter((u) => u.mobile === '8368825928');
+          const hasActiveAdmin = filtered.some((u) => u.role === 'admin' && u.status === 'active');
           if (!hasActiveAdmin) {
-            const adminIndex = parsed.findIndex((u) => u.mobile === '8368825928');
+            const adminIndex = filtered.findIndex((u) => u.mobile === '8368825928');
             if (adminIndex === -1) {
               const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-              if (defaultAdmin) parsed.push(defaultAdmin);
+              if (defaultAdmin) filtered.push(defaultAdmin);
             } else {
-              parsed[adminIndex].role = 'admin';
-              parsed[adminIndex].passcode = '1234';
+              filtered[adminIndex].role = 'admin';
+              filtered[adminIndex].passcode = '1234';
             }
-            localStorage.setItem('ananya_users', JSON.stringify(parsed));
           }
-          const doctorIndex = parsed.findIndex((u) => u.mobile === '8888888888');
-          if (doctorIndex === -1) {
-            const defaultDoctor = DEFAULT_USERS.find(u => u.mobile === '8888888888');
-            if (defaultDoctor) parsed.push(defaultDoctor);
-            localStorage.setItem('ananya_users', JSON.stringify(parsed));
-          }
-          return parsed;
+          localStorage.setItem('ananya_users', JSON.stringify(filtered));
+          return filtered;
         } catch (e) {
           return DEFAULT_USERS;
         }
@@ -393,10 +325,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [doctors, setDoctors] = useState<DoctorProfile[]>(() => {
     if (typeof window !== 'undefined') {
-      const local = localStorage.getItem('ananya_doctors');
-      if (local) return JSON.parse(local);
-      localStorage.setItem('ananya_doctors', JSON.stringify(DEFAULT_DOCTORS));
-      return DEFAULT_DOCTORS;
+      localStorage.setItem('ananya_doctors', JSON.stringify([]));
+      return [];
     }
     return [];
   });
@@ -413,108 +343,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [appointments, setAppointments] = useState<Appointment[]>(() => {
     if (typeof window !== 'undefined') {
-      const local = localStorage.getItem('ananya_appointments');
-      if (local) return JSON.parse(local);
-      const initial = [
-        {
-          id: 'apt_1001',
-          patientId: 'consumer_demo',
-          patientName: 'Rahul Sharma',
-          patientMobile: '7777777777',
-          doctorId: 'doc_ananya',
-          doctorName: 'Dr. Ananya Sharma',
-          specialty: 'Cardiologist & General Medicine',
-          date: new Date().toISOString().split('T')[0],
-          timeSlot: '10:00 AM',
-          reason: 'Routine cardiac health review and prescription renewal.',
-          fees: 600,
-          status: 'approved' as const,
-          paymentStatus: 'paid' as const,
-          paymentId: 'pay_mock_12345',
-          meetingLink: 'https://meet.google.com/abc-defg-hij',
-          notes: 'Keep taking Lipitor as prescribed. Watch sodium intake.',
-          createdAt: new Date(Date.now() - 86400000).toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_appointments', JSON.stringify(initial));
-      return initial;
+      localStorage.setItem('ananya_appointments', JSON.stringify([]));
+      return [];
     }
     return [];
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
     if (typeof window !== 'undefined') {
-      const local = localStorage.getItem('ananya_orders');
-      if (local) return JSON.parse(local);
-      const initial = [
-        {
-          id: 'ord_2001',
-          patientId: 'consumer_demo',
-          patientName: 'Rahul Sharma',
-          patientMobile: '7777777777',
-          items: [
-            { medicineId: 'med_paracetamol', name: 'Paracetamol 650mg (Dolo)', price: 30, quantity: 2 },
-            { medicineId: 'med_lipitor', name: 'Atorvastatin 10mg (Lipitor)', price: 180, quantity: 1 }
-          ],
-          totalAmount: 240,
-          paymentStatus: 'paid' as const,
-          status: 'delivered' as const,
-          paymentId: 'pay_mock_99887',
-          deliveryAddress: 'Flat 402, Block C, Green Park, New Delhi',
-          fastBooking: false,
-          createdAt: new Date(Date.now() - 172800000).toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_orders', JSON.stringify(initial));
-      return initial;
+      localStorage.setItem('ananya_orders', JSON.stringify([]));
+      return [];
     }
     return [];
   });
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     if (typeof window !== 'undefined') {
-      const local = localStorage.getItem('ananya_chats');
-      if (local) return JSON.parse(local);
-      const initial = [
-        {
-          id: 'msg_1',
-          appointmentId: 'apt_1001',
-          senderId: 'doc_ananya',
-          senderName: 'Dr. Ananya Sharma',
-          text: 'Hello Rahul! How are you doing today? I have reviewed your latest cholesterol reports.',
-          timestamp: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: 'msg_2',
-          appointmentId: 'apt_1001',
-          senderId: 'consumer_demo',
-          senderName: 'Rahul Sharma',
-          text: 'Hello doctor, I am feeling fine. My energy levels have improved significantly.',
-          timestamp: new Date(Date.now() - 3400000).toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_chats', JSON.stringify(initial));
-      return initial;
+      localStorage.setItem('ananya_chats', JSON.stringify([]));
+      return [];
     }
     return [];
   });
 
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     if (typeof window !== 'undefined') {
-      const local = localStorage.getItem('ananya_notifications');
-      if (local) return JSON.parse(local);
-      const initial = [
-        {
-          id: 'notif_1',
-          userId: 'consumer_demo',
-          title: 'Appointment Approved',
-          body: 'Your consultation with Dr. Ananya Sharma on today is approved. Meeting link assigned!',
-          read: false,
-          createdAt: new Date().toISOString()
-        }
-      ];
-      localStorage.setItem('ananya_notifications', JSON.stringify(initial));
-      return initial;
+      localStorage.setItem('ananya_notifications', JSON.stringify([]));
+      return [];
     }
     return [];
   });
