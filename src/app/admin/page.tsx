@@ -87,7 +87,7 @@ export default function AdminPanel() {
   // Security Redirects
   useEffect(() => {
     if (!user) {
-      router.push('/');
+      router.push('/admin-login');
     } else if (user.role !== 'admin') {
       router.push('/');
     }

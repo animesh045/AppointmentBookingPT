@@ -251,9 +251,13 @@ export default function Home() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      if (user.role === 'admin') router.push('/admin');
-      else if (user.role === 'doctor') router.push('/doctor');
-      else router.push('/dashboard');
+      if (user.role === 'admin') {
+        router.push('/admin-login');
+      } else if (user.role === 'doctor') {
+        router.push('/admin-login');
+      } else {
+        router.push('/dashboard');
+      }
     }
   }, [user, router]);
 
@@ -356,6 +360,14 @@ export default function Home() {
           }
         }
         
+        // Check if user is staff before logging in on patient portal
+        const isStaff = users.some((u) => u.mobile === mobile && (u.role === 'admin' || u.role === 'doctor'));
+        if (isStaff) {
+          alert('Staff and clinician accounts must log in via the staff portal (/admin-login).');
+          setLoading(false);
+          return;
+        }
+
         // Try logging in the user if profile already exists
         const loggedIn = await loginViaOtp(mobile);
         if (loggedIn) {
@@ -381,6 +393,12 @@ export default function Home() {
     e.preventDefault();
     if (!/^\d{4}$/.test(passcode)) {
       alert('Please enter a valid 4-digit PIN Passcode');
+      return;
+    }
+
+    const isStaff = users.some((u) => u.mobile === mobile && (u.role === 'admin' || u.role === 'doctor'));
+    if (isStaff) {
+      alert('Staff and clinician accounts must log in via the staff portal (/admin-login).');
       return;
     }
 
