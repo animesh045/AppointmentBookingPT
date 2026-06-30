@@ -299,21 +299,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (localUsers) {
         try {
           const parsed = JSON.parse(localUsers) as UserProfile[];
-          // Filter out all users except the admin
-          const filtered = parsed.filter((u) => u.mobile === '8368825928');
-          const hasActiveAdmin = filtered.some((u) => u.role === 'admin' && u.status === 'active');
+          // Ensure the admin user is present and active, but do NOT filter out other users
+          const hasActiveAdmin = parsed.some((u) => u.mobile === '8368825928' && u.role === 'admin' && u.status === 'active');
           if (!hasActiveAdmin) {
-            const adminIndex = filtered.findIndex((u) => u.mobile === '8368825928');
+            const adminIndex = parsed.findIndex((u) => u.mobile === '8368825928');
             if (adminIndex === -1) {
               const defaultAdmin = DEFAULT_USERS.find(u => u.mobile === '8368825928');
-              if (defaultAdmin) filtered.push(defaultAdmin);
+              if (defaultAdmin) parsed.push(defaultAdmin);
             } else {
-              filtered[adminIndex].role = 'admin';
-              filtered[adminIndex].passcode = '1234';
+              parsed[adminIndex].role = 'admin';
+              parsed[adminIndex].passcode = '1234';
+              parsed[adminIndex].status = 'active';
             }
           }
-          localStorage.setItem('ananya_users', JSON.stringify(filtered));
-          return filtered;
+          localStorage.setItem('ananya_users', JSON.stringify(parsed));
+          return parsed;
         } catch (e) {
           return DEFAULT_USERS;
         }
@@ -326,6 +326,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [doctors, setDoctors] = useState<DoctorProfile[]>(() => {
     if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_doctors');
+      if (local) return JSON.parse(local);
       localStorage.setItem('ananya_doctors', JSON.stringify([]));
       return [];
     }
@@ -344,6 +346,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [appointments, setAppointments] = useState<Appointment[]>(() => {
     if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_appointments');
+      if (local) return JSON.parse(local);
       localStorage.setItem('ananya_appointments', JSON.stringify([]));
       return [];
     }
@@ -352,6 +356,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [orders, setOrders] = useState<Order[]>(() => {
     if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_orders');
+      if (local) return JSON.parse(local);
       localStorage.setItem('ananya_orders', JSON.stringify([]));
       return [];
     }
@@ -360,6 +366,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_chats');
+      if (local) return JSON.parse(local);
       localStorage.setItem('ananya_chats', JSON.stringify([]));
       return [];
     }
@@ -368,6 +376,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     if (typeof window !== 'undefined') {
+      const local = localStorage.getItem('ananya_notifications');
+      if (local) return JSON.parse(local);
       localStorage.setItem('ananya_notifications', JSON.stringify([]));
       return [];
     }
