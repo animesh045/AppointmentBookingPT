@@ -1168,12 +1168,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteUser = async (uid: string) => {
-    const updated = users.filter((u) => u.uid !== uid);
-    setUsers(updated);
-    syncStorage('ananya_users', updated);
+    // 1. Delete from users list
+    const updatedUsers = users.filter((u) => u.uid !== uid);
+    setUsers(updatedUsers);
+    syncStorage('ananya_users', updatedUsers);
+
+    // 2. Delete DoctorProfile if exists
+    const updatedDoctors = doctors.filter((d) => d.uid !== uid);
+    setDoctors(updatedDoctors);
+    syncStorage('ananya_doctors', updatedDoctors);
+
+    // 3. Delete Appointments associated with this user (either as patient or doctor)
+    const targetAptIds = appointments.filter((apt) => apt.patientId === uid || apt.doctorId === uid).map(apt => apt.id);
+    const updatedApts = appointments.filter((apt) => apt.patientId !== uid && apt.doctorId !== uid);
+    setAppointments(updatedApts);
+    syncStorage('ananya_appointments', updatedApts);
+
+    // 4. Delete Orders associated with this user
+    const updatedOrders = orders.filter((o) => o.patientId !== uid);
+    setOrders(updatedOrders);
+    syncStorage('ananya_orders', updatedOrders);
+
+    // 5. Delete Notifications associated with this user
+    const updatedNotifs = notifications.filter((n) => n.userId !== uid);
+    setNotifications(updatedNotifs);
+    syncStorage('ananya_notifications', updatedNotifs);
+
+    // 6. Delete Chat Messages associated with the user or their appointments
+    const updatedChats = chatMessages.filter((msg) => !targetAptIds.includes(msg.appointmentId) && msg.senderId !== uid);
+    setChatMessages(updatedChats);
+    syncStorage('ananya_chats', updatedChats);
+
     window.dispatchEvent(new Event('local-storage-update'));
+
+    // --- Database deletions ---
     await deleteDocHelper('users', uid);
-    createLog('Delete User', `Deleted user account UID: ${uid}`);
+    await deleteDocHelper('doctors', uid);
+
+    for (const aptId of targetAptIds) {
+      await deleteDocHelper('appointments', aptId);
+    }
+
+    const targetOrderIds = orders.filter((o) => o.patientId === uid).map(o => o.id);
+    for (const orderId of targetOrderIds) {
+      await deleteDocHelper('orders', orderId);
+    }
+
+    const targetNotifIds = notifications.filter((n) => n.userId === uid).map(n => n.id);
+    for (const notifId of targetNotifIds) {
+      await deleteDocHelper('notifications', notifId);
+    }
+
+    const targetChatIds = chatMessages.filter((msg) => targetAptIds.includes(msg.appointmentId) || msg.senderId === uid).map(msg => msg.id);
+    for (const chatId of targetChatIds) {
+      await deleteDocHelper('chatMessages', chatId);
+    }
+
+    createLog('Delete User', `Deleted user account and purged all history for UID: ${uid}`);
   };
 
   const changeUserRole = async (uid: string, role: 'consumer' | 'doctor' | 'admin') => {
